@@ -9,10 +9,17 @@
 ## ✅ Recent Fixes Applied
 
 **Issue**: Firestore permission errors on page load
-**Fix**: Added authentication guards to prevent queries before auth loads
-**Status**: ✅ FIXED
+**Fix**: Added authentication guards to all pages (Orders, Users, Kitchen, Menu, Dashboard)
+**Status**: ✅ FIXED (commit 7f6f8cd)
 
-The frontend now properly waits for authentication before querying Firestore.
+**Files Updated**:
+- `frontend/src/pages/Orders.jsx` - Added auth check before subscribing to orders
+- `frontend/src/pages/Users.jsx` - Added auth check before fetching users
+- `frontend/src/pages/Kitchen.jsx` - Added auth check before subscribing to kitchen orders
+- `frontend/src/pages/Menu.jsx` - Added auth check before loading menu items
+- `frontend/src/pages/Dashboard.jsx` - Added auth check before fetching dashboard data
+
+All pages now properly wait for user authentication before querying Firestore.
 
 ---
 
