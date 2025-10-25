@@ -422,15 +422,17 @@ Track your testing progress:
 
 **Issue 1: Firestore Permission Errors on Page Load** ✅ FIXED
 - **Error**: "Missing or insufficient permissions" errors in console when pages loaded
-- **Root Cause**: Frontend pages were querying Firestore before authentication context finished loading
-- **Fix Applied** (commit 7f6f8cd): Added authentication guards to all pages:
-  - `Orders.jsx` - Wait for user before subscribing to orders
+- **Root Cause**: Frontend pages were querying Firestore before authentication context finished loading (race condition)
+- **Fix Applied** (commits 7f6f8cd, 42d4d1c, 53f3801, 0365095): Added comprehensive authentication guards with `authLoading` check to all pages:
+  - `Orders.jsx` - Wait for authLoading=false AND user before subscribing to orders
   - `Users.jsx` - Wait for user before fetching users list
-  - `Kitchen.jsx` - Wait for user before subscribing to kitchen orders
+  - `Kitchen.jsx` - Wait for authLoading=false AND user before subscribing to kitchen orders
   - `Menu.jsx` - Wait for user before loading menu items
-  - `Dashboard.jsx` - Wait for user before fetching dashboard data
+  - `Dashboard.jsx` - Wait for authLoading=false AND user before fetching dashboard data
+  - `OrdersHistory.jsx` - Wait for authLoading=false AND user before subscribing to history
+- **Key Enhancement**: Pages now check BOTH `authLoading` and `user` states to prevent subscriptions from starting during Firebase Auth initialization
 - **Status**: ✅ RESOLVED
-- **Testing**: Refresh the application at http://localhost:5174 and check browser console - no permission errors should appear
+- **Testing**: Vite HMR has auto-updated all pages. Check browser console - no permission errors should appear
 
 ---
 
