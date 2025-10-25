@@ -58,6 +58,12 @@ export default function Orders() {
 
   // Setup real-time listeners for orders
   useEffect(() => {
+    // Don't subscribe if user is not authenticated yet
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
 
     // Subscribe to orders with role-based filtering
@@ -102,6 +108,11 @@ export default function Orders() {
 
   // Load users for displaying client names
   useEffect(() => {
+    // Don't load users if not authenticated
+    if (!user) {
+      return;
+    }
+
     async function loadUsers() {
       try {
         const users = await usersService.getAll();
@@ -115,7 +126,7 @@ export default function Orders() {
       }
     }
     loadUsers();
-  }, []);
+  }, [user]);
 
   // Check printer status on mount and update periodically
   useEffect(() => {
