@@ -1,0 +1,13 @@
+-- Users data
+INSERT INTO users (id, username, password_hash, role, name, phone, email, status, created_at, created_by, last_login) VALUES (1, 'admin'
+
+, '$2b$10$Bfdm2RUIeZQiCfo7lVsSlOJEBcFpZwwmLJJdZOKndzdHKEoeynytS', 'manager', 'Administrateur', NULL, NULL, 'active', '2025-10-12 00:13:14', NULL, '2025-10-12 23:13:37');
+INSERT INTO users (id, username, password_hash, role, name, phone, email, status, created_at, created_by, last_login) VALUES (2, 'mehdi'
+
+, '$2b$10$sWwlkt1XglJU2bwIuO5PRO683GN6el4e3Elgw4W6SFfKGHuOYle6y', 'cashier', 'mehdi', NULL, NULL, 'active', '2025-10-12 00:35:43', 1, '2025-10-12 09:31:15');
+INSERT INTO users (id, username, password_hash, role, name, phone, email, status, created_at, created_by, last_login) VALUES (3, 'bilal'
+
+, '$2b$10$fr4IiQzBLMfzWXlEzyDFr.s0ZaLpARmnlIA1zzaDmeYMtISAjMOae', 'cook', 'Bilal', NULL, NULL, 'active', '2025-10-12 00:36:51', 1, '2025-10-12 23:31:36');
+INSERT INTO users (id, username, password_hash, role, name, phone, email, status, created_at, created_by, last_login) VALUES (4, 'client'
+
+, '$2b$10$57UH/peywhYIbqmjjnSMpOyOOGHty439yo13sX1gyEs6PTAqfJwB2', 'client', 'client', NULL, NULL, 'active', '2025-10-12 00:38:30', 1, '2025-10-12 23:28:36');

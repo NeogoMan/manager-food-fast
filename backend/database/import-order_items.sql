@@ -1,0 +1,27 @@
+-- Order items data
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (1, 1, 11, 1, 49.93, 49.93, 'hello am client from casablanca');
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (2, 2, 19, 1, 23, 23, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (3, 3, 8, 1, 45, 45, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (4, 4, 12, 1, 70, 70, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (5, 5, 11, 1, 49.93, 49.93, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (6, 6, 19, 1, 23, 23, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (7, 7, 12, 1, 70, 70, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (8, 8, 11, 1, 49.93, 49.93, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (9, 9, 11, 1, 49.93, 49.93, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (10, 10, 8, 1, 45, 45, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (11, 11, 12, 1, 70, 70, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (12, 12, 19, 1, 23, 23, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (13, 13, 12, 1, 70, 70, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (14, 14, 12, 1, 70, 70, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (15, 15, 12, 1, 70, 70, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (16, 16, 12, 1, 70, 70, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (17, 17, 11, 1, 49.93, 49.93, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (18, 18, 8, 1, 45, 45, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (19, 19, 8, 1, 45, 45, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (20, 20, 11, 1, 49.93, 49.93, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (21, 21, 11, 1, 49.93, 49.93, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (22, 22, 8, 1, 45, 45, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (23, 23, 19, 1, 23, 23, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (24, 23, 20, 1, 20, 20, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (25, 23, 11, 1, 49.93, 49.93, NULL);
+INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, subtotal, special_instructions) VALUES (26, 24, 11, 1, 49.93, 49.93, NULL);

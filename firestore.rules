@@ -1,0 +1,116 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function hasRole(role) {
+      return isAuthenticated() &&
+             (request.auth.token.role == role ||
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role);
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isManager() {
+      return hasRole('manager');
+    }
+
+    function isCashier() {
+      return hasRole('cashier');
+    }
+
+    function isCook() {
+      return hasRole('cook');
+    }
+
+    function isClient() {
+      return hasRole('client');
+    }
+
+    function isStaff() {
+      return isManager() || isCashier() || isCook();
+    }
+
+    // USERS COLLECTION
+    // Only managers can manage users
+    // Users can update their own FCM token
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isManager();
+
+      // Allow managers to update everything
+      // Allow users to update only their FCM token and related fields
+      allow update: if isManager() ||
+                       (isOwner(userId) &&
+                        request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly(['fcmToken', 'fcmTokenUpdatedAt']));
+
+      allow delete: if isManager();
+
+      // Allow users to read their own profile data
+      allow get: if isOwner(userId);
+    }
+
+    // MENU COLLECTION (used by web app)
+    // Public read, only managers can write
+    match /menu/{itemId} {
+      allow read: if true; // Public menu for all visitors
+      allow create, update, delete: if isManager();
+    }
+
+    // MENU_ITEMS COLLECTION (legacy/alternative)
+    // Public read, only managers can write
+    match /menu_items/{itemId} {
+      allow read: if true; // Public menu for all visitors
+      allow create, update, delete: if isManager();
+    }
+
+    // ORDERS COLLECTION
+    match /orders/{orderId} {
+      // Staff and order owner can read
+      allow read: if isStaff() ||
+                     (isClient() && resource.data.userId == request.auth.uid);
+
+      // Staff can create orders for anyone (walk-in customers, etc.)
+      // Clients can only create orders for themselves
+      allow create: if isStaff() ||
+                       (isClient() && request.resource.data.userId == request.auth.uid);
+
+      // Staff can update orders (status changes, assignments)
+      // Clients can cancel their own orders if status is awaiting_approval or pending
+      allow update: if isStaff() ||
+                       (isClient() &&
+                        resource.data.userId == request.auth.uid &&
+                        (resource.data.status == 'awaiting_approval' || resource.data.status == 'pending') &&
+                        request.resource.data.status == 'rejected' &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']));
+
+      // Only managers can delete orders
+      allow delete: if isManager();
+    }
+
+    // CART COLLECTION (for offline sync)
+    match /carts/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // NOTIFICATIONS COLLECTION
+    match /notifications/{notifId} {
+      allow read: if isOwner(resource.data.userId);
+      allow write: if isOwner(request.resource.data.userId);
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

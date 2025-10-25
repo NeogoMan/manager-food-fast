@@ -1,0 +1,30 @@
+{
+  "name": "fast-food-manager",
+  "version": "1.0.0",
+  "description": "Fast Food Restaurant Order Management System",
+  "type": "module",
+  "scripts": {
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "start": "npm run dev"
+  },
+  "keywords": [
+    "restaurant",
+    "order-management",
+    "fast-food",
+    "pos"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "@landicefu/android-adb-mcp-server": "^1.0.2",
+    "bcrypt": "^6.0.0",
+    "firebase-admin": "^13.5.0",
+    "pg": "^8.16.3"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "Fast Food Manager",
+  "short_name": "FFM",
+  "description": "Restaurant order management system for cashiers, kitchen, and managers",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "theme_color": "#ef4444",
+  "background_color": "#1f2937",
+  "categories": ["business", "productivity", "food"],
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Orders",
+      "short_name": "Orders",
+      "description": "View and create orders",
+      "url": "/orders",
+      "icons": []
+    },
+    {
+      "name": "Kitchen",
+      "short_name": "Kitchen",
+      "description": "Kitchen display view",
+      "url": "/kitchen",
+      "icons": []
+    },
+    {
+      "name": "Manager",
+      "short_name": "Manager",
+      "description": "Manager dashboard",
+      "url": "/manager",
+      "icons": []
+    }
+  ]
+}

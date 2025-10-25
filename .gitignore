@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.development
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+frontend/.env.development
+backend/.env
+backend/.env.local
+backend/.env.production
+backend/.env.development
+
+# Build outputs
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Firebase & Google credentials
+serviceAccountKey.json
+firebase-adminsdk-*.json
+google-services.json
+!google-services.json.example
