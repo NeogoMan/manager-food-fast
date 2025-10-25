@@ -39,7 +39,17 @@ export default function Users() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const data = await usersService.getAll();
+
+      // Get restaurantId from JWT token
+      const auth = await import('../config/firebase').then(m => m.auth);
+      const idTokenResult = await auth.currentUser.getIdTokenResult();
+      const restaurantId = idTokenResult.claims.restaurantId;
+
+      if (!restaurantId) {
+        throw new Error('No restaurantId found in auth token');
+      }
+
+      const data = await usersService.getAll(restaurantId);
       setUsersList(data);
     } catch (error) {
       showToast(error.message || 'Erreur lors du chargement des utilisateurs', 'error');
