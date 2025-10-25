@@ -291,6 +291,15 @@ export default function Orders() {
     }
 
     try {
+      // Get restaurantId from JWT token
+      const auth = await import('../config/firebase').then(m => m.auth);
+      const idTokenResult = await auth.currentUser.getIdTokenResult();
+      const restaurantId = idTokenResult.claims.restaurantId;
+
+      if (!restaurantId) {
+        throw new Error('No restaurantId found in auth token');
+      }
+
       // Determine initial status based on user role
       // Staff orders go directly to 'pending', client orders need approval
       const initialStatus = (user?.role === 'manager' || user?.role === 'cashier')
@@ -313,7 +322,7 @@ export default function Orders() {
         totalAmount: calculateTotal(),
         itemCount: orderItems.reduce((sum, item) => sum + item.quantity, 0),
         status: initialStatus, // Pass the initial status
-      });
+      }, restaurantId);
 
       setIsCreateModalOpen(false);
       // Real-time listener will automatically update the list
