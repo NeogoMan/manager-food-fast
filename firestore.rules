@@ -9,9 +9,7 @@ service cloud.firestore {
     }
 
     function hasRole(role) {
-      return isAuthenticated() &&
-             (request.auth.token.role == role ||
-              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role);
+      return isAuthenticated() && request.auth.token.role == role;
     }
 
     function isOwner(userId) {
@@ -40,16 +38,17 @@ service cloud.firestore {
 
     // Multi-tenant helper functions
     function isSuperAdmin() {
-      return isAuthenticated() &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isSuperAdmin == true;
+      return isAuthenticated() && request.auth.token.isSuperAdmin == true;
     }
 
     function getUserRestaurantId() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.restaurantId;
+      return request.auth.token.restaurantId;
     }
 
     function belongsToSameRestaurant(restaurantId) {
-      return isAuthenticated() && getUserRestaurantId() == restaurantId;
+      return isAuthenticated() &&
+             request.auth.token.restaurantId != null &&
+             request.auth.token.restaurantId == restaurantId;
     }
 
     function isValidRestaurantId(restaurantId) {
