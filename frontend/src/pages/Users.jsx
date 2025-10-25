@@ -28,8 +28,13 @@ export default function Users() {
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
 
   useEffect(() => {
+    // Don't fetch users if not authenticated yet
+    if (!currentUser) {
+      setLoading(false);
+      return;
+    }
     fetchUsers();
-  }, []);
+  }, [currentUser]);
 
   const fetchUsers = async () => {
     try {

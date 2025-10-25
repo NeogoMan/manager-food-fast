@@ -155,6 +155,12 @@ export default function Kitchen() {
 
   // Setup Firestore real-time subscription for kitchen orders
   useEffect(() => {
+    // Don't subscribe if user is not authenticated yet
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
 
     // Subscribe to kitchen orders (pending + preparing + ready)
@@ -187,7 +193,7 @@ export default function Kitchen() {
 
     // Cleanup subscription on unmount
     return () => unsubscribe();
-  }, [playNotificationSound, showToast, showBrowserNotification]);
+  }, [user, playNotificationSound, showToast, showBrowserNotification]);
 
   async function updateOrderStatus(orderId, newStatus) {
     try {

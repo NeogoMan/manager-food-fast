@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import Modal from '../components/Modal';
@@ -7,6 +8,7 @@ import { formatMAD } from '../utils/currency';
 import { menu, form, actions, errors, loading, placeholders, confirmations } from '../utils/translations';
 
 export default function Menu() {
+  const { user } = useAuth();
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -24,9 +26,14 @@ export default function Menu() {
   });
 
   useEffect(() => {
+    // Don't load menu items if not authenticated yet
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
     loadMenuItems();
     loadCategories();
-  }, [selectedCategory]);
+  }, [user, selectedCategory]);
 
   async function loadMenuItems() {
     try {

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { dashboardService } from '../services/firestore';
 import { dashboard, status as statusTranslations } from '../utils/translations';
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [filterOptions, setFilterOptions] = useState(null);
@@ -20,9 +22,14 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
+    // Don't fetch data if not authenticated yet
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     fetchFilterOptions();
     fetchData();
-  }, []);
+  }, [user]);
 
   const fetchFilterOptions = async () => {
     try {
