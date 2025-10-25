@@ -65,13 +65,14 @@ export const menuService = {
   },
 
   // Create menu item
-  async create(menuItem) {
+  async create(menuItem, restaurantId) {
     const docRef = await addDoc(collection(db, 'menu'), {
       ...menuItem,
+      restaurantId, // IMPORTANT: Required for multi-tenant security rules
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     });
-    return { id: docRef.id, ...menuItem };
+    return { id: docRef.id, ...menuItem, restaurantId };
   },
 
   // Update menu item

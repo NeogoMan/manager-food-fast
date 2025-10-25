@@ -98,7 +98,16 @@ export default function Menu() {
       if (editingItem) {
         await menuService.update(editingItem.id, data);
       } else {
-        await menuService.create(data);
+        // Get restaurantId from JWT token for new menu items
+        const auth = await import('../config/firebase').then(m => m.auth);
+        const idTokenResult = await auth.currentUser.getIdTokenResult();
+        const restaurantId = idTokenResult.claims.restaurantId;
+
+        if (!restaurantId) {
+          throw new Error('No restaurantId found in auth token');
+        }
+
+        await menuService.create(data, restaurantId);
       }
 
       setIsModalOpen(false);
