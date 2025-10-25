@@ -55,6 +55,7 @@ async function getRestaurantIdFromAuth(request) {
 /**
  * Validate that user has access to a specific restaurant
  */
+// eslint-disable-next-line no-unused-vars
 async function validateRestaurantAccess(request, restaurantId) {
   if (!request.auth) {
     return false;

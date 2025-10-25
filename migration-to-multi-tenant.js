@@ -31,7 +31,7 @@ const db = admin.firestore();
 
 // Configuration
 const DEFAULT_RESTAURANT_ID = "rest_default_001";
-const DEFAULT_RESTAURANT_NAME = "My Restaurant"; // Change this to your restaurant name
+const DEFAULT_RESTAURANT_NAME = "Fast Food Manager"; // Your restaurant name
 const BATCH_SIZE = 500; // Firestore batch write limit
 
 // ============================================================================
@@ -55,8 +55,8 @@ async function createDefaultRestaurant() {
   const restaurantData = {
     restaurantId: DEFAULT_RESTAURANT_ID,
     name: DEFAULT_RESTAURANT_NAME,
-    email: "admin@example.com", // Update this
-    phone: "+1234567890", // Update this
+    email: "admin@fastfoodmanager.com",
+    phone: "+212-600-000-000",
     address: {
       street: "",
       city: "",
