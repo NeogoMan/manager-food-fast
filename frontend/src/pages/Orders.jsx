@@ -12,7 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import printerService from '../services/printerService';
 
 export default function Orders() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [ordersList, setOrdersList] = useState([]);
   const [pendingApprovalOrders, setPendingApprovalOrders] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
@@ -58,7 +58,13 @@ export default function Orders() {
 
   // Setup real-time listeners for orders
   useEffect(() => {
-    // Don't subscribe if user is not authenticated yet
+    // Wait for auth to finish loading before subscribing
+    if (authLoading) {
+      setIsLoading(true);
+      return;
+    }
+
+    // Don't subscribe if user is not authenticated
     if (!user) {
       setIsLoading(false);
       return;
@@ -91,12 +97,12 @@ export default function Orders() {
         unsubscribeApproval();
       }
     };
-  }, [user?.role, user?.id]);
+  }, [authLoading, user?.role, user?.id]);
 
   // Load menu items once (no real-time needed)
   useEffect(() => {
-    // Don't load menu items if not authenticated yet
-    if (!user) {
+    // Wait for auth to finish loading
+    if (authLoading || !user) {
       return;
     }
 
@@ -109,12 +115,12 @@ export default function Orders() {
       }
     }
     loadMenuItems();
-  }, [user]);
+  }, [authLoading, user]);
 
   // Load users for displaying client names
   useEffect(() => {
-    // Don't load users if not authenticated
-    if (!user) {
+    // Wait for auth to finish loading
+    if (authLoading || !user) {
       return;
     }
 
@@ -131,7 +137,7 @@ export default function Orders() {
       }
     }
     loadUsers();
-  }, [user]);
+  }, [authLoading, user]);
 
   // Check printer status on mount and update periodically
   useEffect(() => {
