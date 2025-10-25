@@ -167,10 +167,23 @@ export default function Kitchen() {
       return;
     }
 
-    setIsLoading(true);
+    // Extract restaurantId from JWT token and setup subscription
+    async function setupKitchenSubscription() {
+      try {
+        const auth = await import('../config/firebase').then(m => m.auth);
+        const idTokenResult = await auth.currentUser.getIdTokenResult();
+        const restaurantId = idTokenResult.claims.restaurantId;
 
-    // Subscribe to kitchen orders (pending + preparing + ready)
-    const unsubscribe = ordersService.subscribeToKitchen((orders) => {
+        if (!restaurantId) {
+          console.error('No restaurantId found in auth token');
+          setIsLoading(false);
+          return;
+        }
+
+        setIsLoading(true);
+
+        // Subscribe to kitchen orders (pending + preparing + ready) with restaurantId filter
+        const unsubscribe = ordersService.subscribe((orders) => {
       console.log('🍳 Kitchen orders received:', orders.length, 'orders');
 
       // Detect new orders and show notification (skip on first load)
@@ -192,13 +205,33 @@ export default function Kitchen() {
         );
       }
 
-      previousOrdersCount.current = orders.length;
-      setOrdersList(orders);
-      setIsLoading(false);
+          previousOrdersCount.current = orders.length;
+          setOrdersList(orders);
+          setIsLoading(false);
+        }, {
+          status: ['pending', 'preparing', 'ready'],
+          restaurantId
+        });
+
+        return unsubscribe;
+      } catch (error) {
+        console.error('Error setting up kitchen subscription:', error);
+        setIsLoading(false);
+        return null;
+      }
+    }
+
+    let unsubscribeFunction = null;
+    setupKitchenSubscription().then(unsub => {
+      unsubscribeFunction = unsub;
     });
 
     // Cleanup subscription on unmount
-    return () => unsubscribe();
+    return () => {
+      if (unsubscribeFunction) {
+        unsubscribeFunction();
+      }
+    };
   }, [authLoading, user, playNotificationSound, showToast, showBrowserNotification]);
 
   async function updateOrderStatus(orderId, newStatus) {
