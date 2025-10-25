@@ -23,6 +23,48 @@ const auth = getAuth();
 const messaging = getMessaging();
 
 // ============================================================================
+// MULTI-TENANT HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Get the restaurantId from the authenticated user's custom claims or Firestore
+ */
+async function getRestaurantIdFromAuth(request) {
+  if (!request.auth) {
+    return null;
+  }
+
+  // First check custom claims
+  if (request.auth.token.restaurantId) {
+    return request.auth.token.restaurantId;
+  }
+
+  // Fallback to Firestore lookup
+  try {
+    const userDoc = await db.collection("users").doc(request.auth.uid).get();
+    if (userDoc.exists && userDoc.data().restaurantId) {
+      return userDoc.data().restaurantId;
+    }
+  } catch (error) {
+    console.error("Error fetching restaurantId from Firestore:", error);
+  }
+
+  return null;
+}
+
+/**
+ * Validate that user has access to a specific restaurant
+ */
+async function validateRestaurantAccess(request, restaurantId) {
+  if (!request.auth) {
+    return false;
+  }
+
+  const userRestaurantId = await getRestaurantIdFromAuth(request);
+  return userRestaurantId === restaurantId;
+}
+
+// ============================================================================
 // FCM PUSH NOTIFICATION HELPERS
 // ============================================================================
 
@@ -271,12 +313,14 @@ export const authenticateUser = onCall(async (request) => {
       throw new HttpsError("not-found", "Invalid username or password");
     }
 
-    // Prepare custom claims with all user info
+    // Prepare custom claims with all user info including restaurantId
     const customClaims = {
       role: userData.role,
       username: userData.username,
       name: userData.name,
       phone: userData.phone,
+      restaurantId: userData.restaurantId || null, // Multi-tenant: Include restaurantId
+      isSuperAdmin: userData.isSuperAdmin || false,
     };
 
     // Set custom claims
@@ -300,6 +344,8 @@ export const authenticateUser = onCall(async (request) => {
         role: userData.role,
         phone: userData.phone || null,
         isActive: isActive,
+        restaurantId: userData.restaurantId || null, // Multi-tenant: Include restaurantId
+        isSuperAdmin: userData.isSuperAdmin || false,
         createdAt: userData.createdAt || Date.now(),
         updatedAt: userData.updatedAt || Date.now(),
       },
@@ -318,6 +364,7 @@ export const authenticateUser = onCall(async (request) => {
 /**
  * Cloud Function: createUser
  * Creates a new user (manager only)
+ * Multi-tenant: Users are created within the manager's restaurant
  */
 export const createUser = onCall(async (request) => {
   // Verify the caller is a manager
@@ -325,6 +372,15 @@ export const createUser = onCall(async (request) => {
     throw new HttpsError(
         "permission-denied",
         "Only managers can create users",
+    );
+  }
+
+  // Get the manager's restaurantId
+  const restaurantId = await getRestaurantIdFromAuth(request);
+  if (!restaurantId && !request.auth.token.isSuperAdmin) {
+    throw new HttpsError(
+        "failed-precondition",
+        "Manager must belong to a restaurant",
     );
   }
 
@@ -371,16 +427,21 @@ export const createUser = onCall(async (request) => {
       uid: db.collection("users").doc().id,
     });
 
-    // Set custom claims
-    await auth.setCustomUserClaims(userRecord.uid, {role});
+    // Set custom claims including restaurantId
+    await auth.setCustomUserClaims(userRecord.uid, {
+      role,
+      restaurantId: restaurantId,
+    });
 
-    // Create user document in Firestore
+    // Create user document in Firestore with restaurantId
     await db.collection("users").doc(userRecord.uid).set({
       username,
       passwordHash,
       role,
       name,
       phone: phone || null,
+      restaurantId: restaurantId, // Multi-tenant: Assign to manager's restaurant
+      isSuperAdmin: false,
       status: "active",
       createdAt: new Date(),
       createdBy: request.auth.uid,
