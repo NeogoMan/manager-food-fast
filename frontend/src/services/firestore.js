@@ -235,6 +235,11 @@ export const ordersService = {
     // Apply filters if provided
     const constraints = [];
 
+    // IMPORTANT: Always filter by restaurantId for multi-tenant isolation
+    if (filterOptions.restaurantId) {
+      constraints.push(where('restaurantId', '==', filterOptions.restaurantId));
+    }
+
     if (filterOptions.status) {
       if (Array.isArray(filterOptions.status)) {
         constraints.push(where('status', 'in', filterOptions.status));
@@ -338,8 +343,15 @@ export const ordersService = {
  */
 export const usersService = {
   // Get all users
-  async getAll() {
-    const querySnapshot = await getDocs(collection(db, 'users'));
+  async getAll(restaurantId = null) {
+    let q = collection(db, 'users');
+
+    // IMPORTANT: Filter by restaurantId for multi-tenant isolation
+    if (restaurantId) {
+      q = query(q, where('restaurantId', '==', restaurantId));
+    }
+
+    const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),

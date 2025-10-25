@@ -70,31 +70,60 @@ export default function Orders() {
       return;
     }
 
-    setIsLoading(true);
+    // Get restaurantId from Firebase Auth token claims
+    async function setupSubscriptions() {
+      try {
+        const auth = await import('../config/firebase').then(m => m.auth);
+        const idTokenResult = await auth.currentUser.getIdTokenResult();
+        const restaurantId = idTokenResult.claims.restaurantId;
 
-    // Subscribe to orders with role-based filtering
-    // Clients only see their own orders, staff see all orders
-    const subscriptionFilter = user?.role === 'client' ? { userId: user.id } : {};
+        if (!restaurantId) {
+          console.error('No restaurantId found in auth token');
+          setIsLoading(false);
+          return;
+        }
 
-    const unsubscribeOrders = ordersService.subscribe((orders) => {
-      setOrdersList(orders);
-      setIsLoading(false);
-    }, subscriptionFilter);
+        setIsLoading(true);
 
-    // Subscribe to pending approval orders (for staff)
-    let unsubscribeApproval;
-    if (user?.role === 'manager' || user?.role === 'cashier') {
-      unsubscribeApproval = ordersService.subscribe((orders) => {
-        const pending = orders.filter(o => o.status === 'awaiting_approval');
-        setPendingApprovalOrders(pending);
-      }, { status: 'awaiting_approval' });
+        // Subscribe to orders with role-based filtering
+        // Clients only see their own orders, staff see all orders
+        const subscriptionFilter = user?.role === 'client'
+          ? { userId: user.id, restaurantId }
+          : { restaurantId };
+
+        const unsubscribeOrders = ordersService.subscribe((orders) => {
+          setOrdersList(orders);
+          setIsLoading(false);
+        }, subscriptionFilter);
+
+        // Subscribe to pending approval orders (for staff)
+        let unsubscribeApproval;
+        if (user?.role === 'manager' || user?.role === 'cashier') {
+          unsubscribeApproval = ordersService.subscribe((orders) => {
+            const pending = orders.filter(o => o.status === 'awaiting_approval');
+            setPendingApprovalOrders(pending);
+          }, { status: 'awaiting_approval', restaurantId });
+        }
+
+        // Store unsubscribe functions for cleanup
+        return { unsubscribeOrders, unsubscribeApproval };
+      } catch (error) {
+        console.error('Error setting up subscriptions:', error);
+        setIsLoading(false);
+        return null;
+      }
     }
+
+    let unsubscribeFunctions = null;
+    setupSubscriptions().then(result => {
+      unsubscribeFunctions = result;
+    });
 
     // Cleanup subscriptions on unmount
     return () => {
-      unsubscribeOrders();
-      if (unsubscribeApproval) {
-        unsubscribeApproval();
+      if (unsubscribeFunctions) {
+        unsubscribeFunctions.unsubscribeOrders?.();
+        unsubscribeFunctions.unsubscribeApproval?.();
       }
     };
   }, [authLoading, user?.role, user?.id]);
@@ -126,7 +155,11 @@ export default function Orders() {
 
     async function loadUsers() {
       try {
-        const users = await usersService.getAll();
+        const auth = await import('../config/firebase').then(m => m.auth);
+        const idTokenResult = await auth.currentUser.getIdTokenResult();
+        const restaurantId = idTokenResult.claims.restaurantId;
+
+        const users = await usersService.getAll(restaurantId);
         const map = {};
         users.forEach(u => {
           map[u.id] = u;
