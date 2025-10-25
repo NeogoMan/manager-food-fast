@@ -13,7 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 export default function Kitchen() {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useContext(ThemeContext);
-  const { user, logout } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
 
   const [ordersList, setOrdersList] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -155,7 +155,13 @@ export default function Kitchen() {
 
   // Setup Firestore real-time subscription for kitchen orders
   useEffect(() => {
-    // Don't subscribe if user is not authenticated yet
+    // Wait for auth to finish loading before subscribing
+    if (authLoading) {
+      setIsLoading(true);
+      return;
+    }
+
+    // Don't subscribe if user is not authenticated
     if (!user) {
       setIsLoading(false);
       return;
@@ -193,7 +199,7 @@ export default function Kitchen() {
 
     // Cleanup subscription on unmount
     return () => unsubscribe();
-  }, [user, playNotificationSound, showToast, showBrowserNotification]);
+  }, [authLoading, user, playNotificationSound, showToast, showBrowserNotification]);
 
   async function updateOrderStatus(orderId, newStatus) {
     try {
