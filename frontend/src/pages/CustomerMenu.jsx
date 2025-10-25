@@ -32,6 +32,7 @@ export default function CustomerMenu() {
     try {
       setLoading(true);
       // Get only available menu items
+      // Note: This is a public menu for guests/clients, no auth required
       const data = await menuService.getAvailable();
       setMenuItems(data);
     } catch (error) {

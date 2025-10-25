@@ -29,6 +29,12 @@ export default function OrdersHistory() {
 
   // Setup real-time listener for completed and cancelled orders
   useEffect(() => {
+    // Don't subscribe if user is not authenticated yet
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
 
     const unsubscribe = ordersService.subscribe((orders) => {
@@ -41,10 +47,15 @@ export default function OrdersHistory() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   // Load users for displaying client names
   useEffect(() => {
+    // Don't load users if not authenticated yet
+    if (!user) {
+      return;
+    }
+
     async function loadUsers() {
       try {
         const users = await usersService.getAll();

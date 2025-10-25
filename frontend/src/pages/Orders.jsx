@@ -95,6 +95,11 @@ export default function Orders() {
 
   // Load menu items once (no real-time needed)
   useEffect(() => {
+    // Don't load menu items if not authenticated yet
+    if (!user) {
+      return;
+    }
+
     async function loadMenuItems() {
       try {
         const data = await menuService.getAvailable();
@@ -104,7 +109,7 @@ export default function Orders() {
       }
     }
     loadMenuItems();
-  }, []);
+  }, [user]);
 
   // Load users for displaying client names
   useEffect(() => {
