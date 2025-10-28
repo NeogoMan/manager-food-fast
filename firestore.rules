@@ -148,8 +148,9 @@ service cloud.firestore {
                         resource.data.userId == request.auth.uid &&
                         belongsToSameRestaurant(resource.data.restaurantId) &&
                         (resource.data.status == 'awaiting_approval' || resource.data.status == 'pending') &&
-                        request.resource.data.status == 'rejected' &&
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']));
+                        request.resource.data.status == 'cancelled' &&
+                        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'rejectionReason', 'updatedAt']) ||
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])));
 
       // Only managers in same restaurant can delete orders
       allow delete: if isSuperAdmin() ||

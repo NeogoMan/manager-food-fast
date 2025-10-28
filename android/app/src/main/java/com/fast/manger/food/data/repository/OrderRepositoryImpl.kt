@@ -211,16 +211,18 @@ class OrderRepositoryImpl @Inject constructor(
 
     /**
      * Cancel order (client action)
+     * @param orderId ID of the order to cancel
+     * @param reason Optional cancellation reason
      */
-    override suspend fun cancelOrder(orderId: String): Result<Unit> {
+    override suspend fun cancelOrder(orderId: String, reason: String?): Result<Unit> {
         return try {
-            // Cancel in Firestore
-            when (val result = firestoreOrderService.cancelOrder(orderId)) {
+            // Cancel in Firestore with optional reason
+            when (val result = firestoreOrderService.cancelOrder(orderId, reason)) {
                 is Result.Success -> {
-                    // Update local cache
+                    // Update local cache with CANCELLED status
                     orderDao.updateStatus(
                         orderId,
-                        OrderStatus.REJECTED.toApiString(),
+                        OrderStatus.CANCELLED.toApiString(),
                         System.currentTimeMillis()
                     )
                     Result.Success(Unit)
@@ -286,8 +288,6 @@ class OrderRepositoryImpl @Inject constructor(
         CoroutineScope(Dispatchers.IO).launch {
             firestoreOrderService.observeOrdersByUserId(userId).collect { result ->
                 if (result is Result.Success) {
-                    android.util.Log.d("OrderRepository", "Firestore sync received ${result.data.size} orders")
-
                     // For each order, check if status changed before updating
                     result.data.forEach { newOrder ->
                         val existingOrder = orderDao.getById(newOrder.id)
@@ -297,11 +297,8 @@ class OrderRepositoryImpl @Inject constructor(
                             val oldStatus = OrderStatus.fromString(existingOrder.status)
                             val newStatus = newOrder.status
 
-                            android.util.Log.d("OrderRepository", "Order ${newOrder.orderNumber}: Old status='${existingOrder.status}' ($oldStatus) → New status='${newOrder.status.toApiString()}' ($newStatus)")
-
                             // Show notification if status changed to important states
                             if (oldStatus != newStatus && shouldNotifyForStatus(newStatus)) {
-                                android.util.Log.d("OrderRepository", "Showing notification for status change to $newStatus")
                                 NotificationHelper.showOrderStatusNotification(
                                     context = context,
                                     orderId = newOrder.id,
@@ -310,15 +307,12 @@ class OrderRepositoryImpl @Inject constructor(
                                     rejectionReason = newOrder.rejectionReason
                                 )
                             }
-                        } else {
-                            android.util.Log.d("OrderRepository", "New order ${newOrder.orderNumber} with status ${newOrder.status}")
                         }
                     }
 
                     // Update all orders in database
                     val entities = result.data.map { OrderEntity.fromDomainModel(it) }
                     orderDao.insertAll(entities)
-                    android.util.Log.d("OrderRepository", "Updated ${entities.size} orders in Room database")
                 }
             }
         }

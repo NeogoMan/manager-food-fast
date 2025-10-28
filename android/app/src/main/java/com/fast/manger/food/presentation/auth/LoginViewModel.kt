@@ -150,34 +150,26 @@ class LoginViewModel @Inject constructor(
      */
     private fun checkAndShowNotificationPermission() {
         viewModelScope.launch {
-            android.util.Log.d("LoginViewModel", "checkAndShowNotificationPermission called")
-
             val isGranted = preferencesManager.isNotificationPermissionGranted.first()
             val dismissedCount = preferencesManager.permissionDismissedCount.first()
             val maybeLaterCount = preferencesManager.permissionMaybeLaterCount.first()
 
-            android.util.Log.d("LoginViewModel", "isGranted: $isGranted, dismissedCount: $dismissedCount, maybeLaterCount: $maybeLaterCount")
-
             // Don't show if permission already granted
             if (isGranted) {
-                android.util.Log.d("LoginViewModel", "Permission already granted - not showing sheet")
                 return@launch
             }
 
             // Don't show if user has dismissed too many times (respecting user choice)
             if (dismissedCount >= 3) {
-                android.util.Log.d("LoginViewModel", "User dismissed 3+ times - respecting their choice")
                 return@launch
             }
 
             // Don't show if user has clicked "Maybe Later" too many times
             if (maybeLaterCount >= 4) {
-                android.util.Log.d("LoginViewModel", "User clicked 'Maybe Later' 4+ times - not showing anymore")
                 return@launch
             }
 
             // Show the bottom sheet
-            android.util.Log.d("LoginViewModel", "Showing notification permission sheet")
             _uiState.update { it.copy(showNotificationPermissionSheet = true) }
         }
     }
@@ -188,7 +180,6 @@ class LoginViewModel @Inject constructor(
      */
     fun onDismissNotificationPermission() {
         viewModelScope.launch {
-            android.util.Log.d("LoginViewModel", "User dismissed notification sheet")
             preferencesManager.incrementDismissedCount()
             _uiState.update { it.copy(showNotificationPermissionSheet = false, isLoggedIn = true) }
         }
@@ -200,7 +191,6 @@ class LoginViewModel @Inject constructor(
      */
     fun onNotificationPermissionMaybeLater() {
         viewModelScope.launch {
-            android.util.Log.d("LoginViewModel", "User clicked 'Maybe Later'")
             preferencesManager.incrementMaybeLaterCount()
             _uiState.update { it.copy(showNotificationPermissionSheet = false, isLoggedIn = true) }
         }
@@ -212,7 +202,6 @@ class LoginViewModel @Inject constructor(
      */
     fun onNotificationPermissionAccepted() {
         viewModelScope.launch {
-            android.util.Log.d("LoginViewModel", "User accepted notification permission")
             preferencesManager.setNotificationPermissionRequested()
             // Note: The actual permission grant is tracked by the permission launcher callback
             _uiState.update { it.copy(showNotificationPermissionSheet = false, isLoggedIn = true) }

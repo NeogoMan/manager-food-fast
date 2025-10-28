@@ -18,6 +18,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -116,7 +117,8 @@ private fun OrdersContent(
     cancellingOrderId: String?,
     onTabSelected: (OrderTab) -> Unit,
     onCancelOrder: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: OrdersViewModel = hiltViewModel()
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         // Tabs
@@ -157,7 +159,8 @@ private fun OrdersContent(
                     OrderCard(
                         order = order,
                         isCancelling = isCancellingOrder && cancellingOrderId == order.id,
-                        onCancelOrder = { onCancelOrder(order.id) }
+                        onCancelOrder = { onCancelOrder(order.id) },
+                        viewModel = viewModel
                     )
                 }
             }
@@ -170,9 +173,11 @@ private fun OrderCard(
     order: Order,
     isCancelling: Boolean,
     onCancelOrder: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: OrdersViewModel
 ) {
     var showCancelDialog by remember { mutableStateOf(false) }
+    val uiState by viewModel.uiState.collectAsState()
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -196,12 +201,6 @@ private fun OrderCard(
                         text = formatDate(order.createdAt),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    // DEBUG: Show raw status enum value
-                    Text(
-                        text = "DEBUG: ${order.status.name} | canCancel: ${order.canBeCancelled()}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error
                     )
                 }
                 OrderStatusBadge(status = order.status)
@@ -250,6 +249,32 @@ private fun OrderCard(
                 )
             }
 
+            // Cancellation reason (shown to cashier when order is cancelled)
+            if (order.status == com.fast.manger.food.domain.model.OrderStatus.REJECTED &&
+                !order.rejectionReason.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "Raison d'annulation:",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = order.rejectionReason,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
 
             // Total and cancel button
@@ -279,12 +304,47 @@ private fun OrderCard(
         }
     }
 
-    // Cancel order confirmation dialog
+    // Enhanced cancel order dialog with optional reason
     if (showCancelDialog) {
         AlertDialog(
-            onDismissRequest = { showCancelDialog = false },
+            onDismissRequest = {
+                showCancelDialog = false
+                viewModel.onCancellationReasonChange("")  // Clear reason on dismiss
+            },
             title = { Text("Annuler la commande") },
-            text = { Text("Êtes-vous sûr de vouloir annuler cette commande?") },
+            text = {
+                Column {
+                    Text(
+                        text = "Êtes-vous sûr de vouloir annuler cette commande?",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Raison (optionnel):",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = uiState.cancellationReason,
+                        onValueChange = { newValue ->
+                            // Limit to 200 characters
+                            if (newValue.length <= 200) {
+                                viewModel.onCancellationReasonChange(newValue)
+                            }
+                        },
+                        placeholder = { Text("Ex: J'ai changé d'avis, erreur de commande...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 3,
+                        supportingText = {
+                            Text(
+                                text = "${uiState.cancellationReason.length}/200",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    )
+                }
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -292,11 +352,16 @@ private fun OrderCard(
                         showCancelDialog = false
                     }
                 ) {
-                    Text("Confirmer")
+                    Text("Confirmer l'annulation")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showCancelDialog = false }) {
+                TextButton(
+                    onClick = {
+                        showCancelDialog = false
+                        viewModel.onCancellationReasonChange("")  // Clear reason on cancel
+                    }
+                ) {
                     Text("Retour")
                 }
             }

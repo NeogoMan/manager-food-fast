@@ -7,9 +7,13 @@ import com.fast.manger.food.domain.model.Result
 import com.fast.manger.food.domain.repository.AuthRepository
 import com.fast.manger.food.domain.repository.CartRepository
 import com.fast.manger.food.domain.repository.OrderRepository
+import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * Use Case: Place Order
@@ -21,22 +25,48 @@ class PlaceOrderUseCase @Inject constructor(
     private val authRepository: AuthRepository
 ) {
     /**
+     * Extract restaurantId from Firebase Auth token claims
+     */
+    private suspend fun getRestaurantId(): String? = suspendCancellableCoroutine { continuation ->
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        if (currentUser == null) {
+            continuation.resume(null)
+            return@suspendCancellableCoroutine
+        }
+
+        currentUser.getIdToken(false)
+            .addOnSuccessListener { result ->
+                val restaurantId = result.claims["restaurantId"] as? String
+                continuation.resume(restaurantId)
+            }
+            .addOnFailureListener { exception ->
+                continuation.resumeWithException(exception)
+            }
+    }
+
+    /**
      * Place order from cart
      * @param notes Optional order notes
      */
     suspend operator fun invoke(notes: String? = null): Result<String> {
         try {
-            android.util.Log.d("PlaceOrderUseCase", "Starting order placement...")
-
             // Get current user
             val userResult = authRepository.getCurrentUser()
-            android.util.Log.d("PlaceOrderUseCase", "User result = $userResult")
             if (userResult !is Result.Success || userResult.data == null) {
-                android.util.Log.e("PlaceOrderUseCase", "User not authenticated")
                 return Result.Error(Exception("Utilisateur non authentifié"))
             }
             val user = userResult.data
-            android.util.Log.d("PlaceOrderUseCase", "User = ${user.id}, ${user.name}, ${user.role}")
+
+            // Get restaurantId from Firebase Auth token claims
+            val restaurantId = try {
+                getRestaurantId()
+            } catch (e: Exception) {
+                null
+            }
+
+            if (restaurantId == null) {
+                return Result.Error(Exception("Restaurant non identifié"))
+            }
 
             // Get cart items
             val cartResult = cartRepository.getCartItems()
@@ -69,6 +99,7 @@ class PlaceOrderUseCase @Inject constructor(
                 id = "", // Will be assigned by Firestore
                 orderNumber = orderNumber,
                 userId = user.id,
+                restaurantId = restaurantId,
                 customerName = user.name,
                 items = cartItems.map { it.toOrderItem() },
                 totalAmount = total,
@@ -81,21 +112,15 @@ class PlaceOrderUseCase @Inject constructor(
             )
 
             // Place order
-            android.util.Log.d("PlaceOrderUseCase", "Placing order... orderNumber=${order.orderNumber}, userId=${order.userId}, items=${order.items.size}, total=${order.totalAmount}")
             val result = orderRepository.placeOrder(order)
-            android.util.Log.d("PlaceOrderUseCase", "Place order result = $result")
 
             // Clear cart on success
             if (result is Result.Success) {
-                android.util.Log.d("PlaceOrderUseCase", "Order placed successfully, clearing cart...")
                 cartRepository.clearCart()
-            } else if (result is Result.Error) {
-                android.util.Log.e("PlaceOrderUseCase", "Order placement failed: ${result.exception.message}")
             }
 
             return result
         } catch (e: Exception) {
-            android.util.Log.e("PlaceOrderUseCase", "Exception caught: ${e.message}", e)
             return Result.Error(Exception("Échec de la commande: ${e.message}"))
         }
     }

@@ -1,6 +1,5 @@
 package com.fast.manger.food.presentation.notifications
 
-import android.util.Log
 import com.fast.manger.food.data.remote.api.FirebaseAuthService
 import com.fast.manger.food.data.remote.api.FirestoreUserService
 import com.fast.manger.food.domain.model.OrderStatus
@@ -30,17 +29,12 @@ class FCMService : FirebaseMessagingService() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    companion object {
-        private const val TAG = "FCMService"
-    }
-
     /**
      * Called when a new FCM token is generated
      * This happens on app install, reinstall, or token refresh
      */
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        Log.d(TAG, "New FCM token generated: $token")
 
         // Update token in Firestore
         serviceScope.launch {
@@ -48,12 +42,9 @@ class FCMService : FirebaseMessagingService() {
                 val currentUserId = authService.getCurrentUserId()
                 if (currentUserId != null) {
                     userService.updateFcmToken(currentUserId, token)
-                    Log.d(TAG, "FCM token updated for user: $currentUserId")
-                } else {
-                    Log.d(TAG, "No user logged in, FCM token not saved")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to update FCM token", e)
+                // Failed to update token
             }
         }
     }
@@ -70,12 +61,9 @@ class FCMService : FirebaseMessagingService() {
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
 
-        Log.d(TAG, "Message received from: ${remoteMessage.from}")
-
         // Check if message contains data payload
         // Data messages are always delivered to onMessageReceived
         if (remoteMessage.data.isNotEmpty()) {
-            Log.d(TAG, "Message data payload: ${remoteMessage.data}")
             handleDataMessage(remoteMessage.data)
         }
 
@@ -83,8 +71,6 @@ class FCMService : FirebaseMessagingService() {
         // When app is in background/terminated, notification payload is handled by system
         // When app is in foreground, we need to manually show the notification
         remoteMessage.notification?.let {
-            Log.d(TAG, "Message notification: ${it.title} - ${it.body}")
-
             // If data is also present, we already handled it above
             // Otherwise, show a generic notification from the notification payload
             if (remoteMessage.data.isEmpty()) {
@@ -133,8 +119,6 @@ class FCMService : FirebaseMessagingService() {
                             status = status,
                             rejectionReason = rejectionReason
                         )
-
-                        Log.d(TAG, "Order status notification shown: $orderNumber - $status")
                     }
                 }
                 "order_confirmation" -> {
@@ -149,16 +133,11 @@ class FCMService : FirebaseMessagingService() {
                             orderNumber = orderNumber,
                             status = OrderStatus.AWAITING_APPROVAL
                         )
-
-                        Log.d(TAG, "Order confirmation notification shown: $orderNumber")
                     }
-                }
-                else -> {
-                    Log.w(TAG, "Unknown notification type: $type")
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error handling data message", e)
+            // Error handling data message
         }
     }
 

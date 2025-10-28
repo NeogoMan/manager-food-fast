@@ -141,30 +141,18 @@ class CartViewModel @Inject constructor(
      * Place order
      */
     fun placeOrder() {
-        android.util.Log.d("CartViewModel", "=== PLACE ORDER BUTTON CLICKED ===")
-        android.util.Log.d("CartViewModel", "placeOrder() called - START")
-        android.util.Log.d("CartViewModel", "Cart items count: ${_uiState.value.cartItems.size}")
-
-        // Force show error to test if function is called
-        _uiState.update { it.copy(error = "TEST: placeOrder function was called!") }
-
         if (_uiState.value.cartItems.isEmpty()) {
-            android.util.Log.e("CartViewModel", "Cart is empty!")
             _uiState.update { it.copy(error = "Le panier est vide") }
             return
         }
 
-        android.util.Log.d("CartViewModel", "Setting isPlacingOrder = true")
         _uiState.update { it.copy(isPlacingOrder = true, error = null) }
 
         viewModelScope.launch {
             val notes = _uiState.value.orderNotes.ifBlank { null }
 
-            android.util.Log.d("CartViewModel", "Calling placeOrderUseCase with notes: $notes")
-
             when (val result = placeOrderUseCase(notes)) {
                 is Result.Success -> {
-                    android.util.Log.d("CartViewModel", "Order placed successfully! ID: ${result.data}")
                     _uiState.update {
                         it.copy(
                             isPlacingOrder = false,
@@ -175,7 +163,6 @@ class CartViewModel @Inject constructor(
                     }
                 }
                 is Result.Error -> {
-                    android.util.Log.e("CartViewModel", "Order placement failed: ${result.exception.message}")
                     _uiState.update {
                         it.copy(
                             isPlacingOrder = false,
@@ -184,7 +171,7 @@ class CartViewModel @Inject constructor(
                     }
                 }
                 is Result.Loading -> {
-                    android.util.Log.d("CartViewModel", "Order placement loading...")
+                    // Loading state handled by isPlacingOrder
                 }
             }
         }

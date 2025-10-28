@@ -18,6 +18,9 @@ data class OrderDto(
     @PropertyName("userId")
     val userId: String? = null,
 
+    @PropertyName("restaurantId")
+    val restaurantId: String? = null,
+
     @PropertyName("customerName")
     val customerName: String? = null,
 
@@ -64,13 +67,11 @@ data class OrderDto(
      * Convert DTO to Domain model
      */
     fun toDomainModel(id: String): Order {
-        // Debug logging to see raw Firestore data
-        android.util.Log.d("OrderDto", "Converting order $orderNumber - Status from Firestore: '$status', Payment: '$paymentStatus'")
-
         return Order(
             id = id,
             orderNumber = orderNumber,
             userId = userId,
+            restaurantId = restaurantId,
             customerName = customerName,
             items = items.map { it.toDomainModel() },
             totalAmount = totalAmount,
@@ -115,6 +116,7 @@ data class OrderDto(
                 "updatedAt" to Timestamp(java.util.Date(order.updatedAt))
             ).apply {
                 order.userId?.let { put("userId", it) }
+                order.restaurantId?.let { put("restaurantId", it) }
                 order.customerName?.let { put("customerName", it) }
                 order.notes?.let { put("notes", it) }
                 order.paymentAmount?.let { put("paymentAmount", it) }

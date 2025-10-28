@@ -52,8 +52,10 @@ interface OrderRepository {
 
     /**
      * Cancel order (client action)
+     * @param orderId ID of the order to cancel
+     * @param reason Optional cancellation reason
      */
-    suspend fun cancelOrder(orderId: String): Result<Unit>
+    suspend fun cancelOrder(orderId: String, reason: String? = null): Result<Unit>
 
     /**
      * Update order status

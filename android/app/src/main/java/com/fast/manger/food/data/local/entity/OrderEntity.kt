@@ -16,6 +16,7 @@ data class OrderEntity(
     val id: String,
     val orderNumber: String,
     val userId: String? = null,
+    val restaurantId: String? = null,
     val customerName: String? = null,
     val items: List<OrderItemEntity>,
     val totalAmount: Double,
@@ -32,13 +33,11 @@ data class OrderEntity(
     val updatedAt: Long
 ) {
     fun toDomainModel(): Order {
-        // Debug logging to see what's in Room database
-        android.util.Log.d("OrderEntity", "Converting from Room DB - Order $orderNumber - Status in DB: '$status'")
-
         return Order(
             id = id,
             orderNumber = orderNumber,
             userId = userId,
+            restaurantId = restaurantId,
             customerName = customerName,
             items = items.map { it.toDomainModel() },
             totalAmount = totalAmount,
@@ -62,6 +61,7 @@ data class OrderEntity(
                 id = order.id,
                 orderNumber = order.orderNumber,
                 userId = order.userId,
+                restaurantId = order.restaurantId,
                 customerName = order.customerName,
                 items = order.items.map { OrderItemEntity.fromDomainModel(it) },
                 totalAmount = order.totalAmount,

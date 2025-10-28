@@ -143,9 +143,22 @@ class OrdersViewModel @Inject constructor(
     }
 
     /**
-     * Cancel order
+     * Update cancellation reason
+     */
+    fun onCancellationReasonChange(reason: String) {
+        _uiState.update { it.copy(cancellationReason = reason) }
+    }
+
+    /**
+     * Cancel order with optional reason
      */
     fun cancelOrder(orderId: String) {
+        val reason = _uiState.value.cancellationReason.trim().takeIf { it.isNotEmpty() }
+
+        android.util.Log.d("OrdersViewModel", "=== CANCEL ORDER CLICKED ===")
+        android.util.Log.d("OrdersViewModel", "Order ID: $orderId")
+        android.util.Log.d("OrdersViewModel", "Reason: ${reason ?: "null (no reason provided)"}")
+
         _uiState.update {
             it.copy(
                 isCancellingOrder = true,
@@ -155,17 +168,21 @@ class OrdersViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            when (val result = cancelOrderUseCase(orderId)) {
+            android.util.Log.d("OrdersViewModel", "Calling cancelOrderUseCase...")
+            when (val result = cancelOrderUseCase(orderId, reason)) {
                 is Result.Success -> {
+                    android.util.Log.d("OrdersViewModel", "Cancel order SUCCESS")
                     _uiState.update {
                         it.copy(
                             isCancellingOrder = false,
-                            cancellingOrderId = null
+                            cancellingOrderId = null,
+                            cancellationReason = "" // Clear reason after successful cancel
                         )
                     }
                     // Order will be updated via real-time observer
                 }
                 is Result.Error -> {
+                    android.util.Log.e("OrdersViewModel", "Cancel order FAILED: ${result.exception.message}")
                     _uiState.update {
                         it.copy(
                             isCancellingOrder = false,
@@ -175,6 +192,7 @@ class OrdersViewModel @Inject constructor(
                     }
                 }
                 is Result.Loading -> {
+                    android.util.Log.d("OrdersViewModel", "Cancel order LOADING state")
                     // Already handled
                 }
             }
