@@ -37,18 +37,22 @@ export const db = getFirestore(app);
 export const functions = getFunctions(app, 'us-central1'); // Explicitly set region
 export const storage = getStorage(app);
 
+// TEMPORARILY DISABLED: IndexedDB persistence to clear corrupted state
+// Re-enable after testing confirms no errors
 // Enable offline persistence for better offline experience
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code === 'failed-precondition') {
-    // Multiple tabs open, persistence can only be enabled in one tab at a time
-    console.warn('⚠️ Offline persistence: Multiple tabs open, enabled in first tab only');
-  } else if (err.code === 'unimplemented') {
-    // Browser doesn't support offline persistence
-    console.warn('⚠️ Offline persistence: Browser doesn\'t support offline mode');
-  } else {
-    console.error('❌ Error enabling offline persistence:', err);
-  }
-});
+// enableIndexedDbPersistence(db).catch((err) => {
+//   if (err.code === 'failed-precondition') {
+//     // Multiple tabs open, persistence can only be enabled in one tab at a time
+//     console.warn('⚠️ Offline persistence: Multiple tabs open, enabled in first tab only');
+//   } else if (err.code === 'unimplemented') {
+//     // Browser doesn't support offline persistence
+//     console.warn('⚠️ Offline persistence: Browser doesn\'t support offline mode');
+//   } else {
+//     console.error('❌ Error enabling offline persistence:', err);
+//   }
+// });
+
+console.log('⚠️  IndexedDB persistence DISABLED (temporary fix for corrupted state)');
 
 // Connect to emulators in development
 if (import.meta.env.MODE === 'development' && import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true') {

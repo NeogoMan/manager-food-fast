@@ -120,7 +120,6 @@ object NotificationHelper {
             )
         } catch (e: SecurityException) {
             // Permission not granted - handle silently
-            android.util.Log.w("NotificationHelper", "Notification permission not granted")
         }
     }
 
@@ -152,6 +151,10 @@ object NotificationHelper {
             OrderStatus.COMPLETED -> {
                 "Merci!" to
                 "Votre commande $orderNumber est terminée. Merci de votre visite!"
+            }
+            OrderStatus.CANCELLED -> {
+                "Commande annulée" to
+                "Votre commande $orderNumber a été annulée."
             }
             OrderStatus.REJECTED -> {
                 "Commande refusée" to

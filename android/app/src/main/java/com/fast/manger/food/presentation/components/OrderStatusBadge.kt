@@ -31,7 +31,8 @@ fun OrderStatusBadge(
         OrderStatus.PREPARING -> OrangePrimary to Color.White
         OrderStatus.READY -> SuccessGreen to Color.White
         OrderStatus.COMPLETED -> SuccessGreen.copy(alpha = 0.7f) to Color.White
-        OrderStatus.REJECTED -> ErrorRed to Color.White
+        OrderStatus.CANCELLED -> ErrorRed to Color.White
+        OrderStatus.REJECTED -> WarningYellow to Color.Black
     }
 
     Text(

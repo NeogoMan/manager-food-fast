@@ -107,14 +107,8 @@ fun LoginScreen(
         }
     }
 
-    // Debug logging for notification sheet
-    LaunchedEffect(uiState.showNotificationPermissionSheet) {
-        android.util.Log.d("LoginScreen", "showNotificationPermissionSheet: ${uiState.showNotificationPermissionSheet}")
-    }
-
     // Show notification permission bottom sheet
     if (uiState.showNotificationPermissionSheet) {
-        android.util.Log.d("LoginScreen", "Rendering NotificationPermissionBottomSheet")
         NotificationPermissionBottomSheet(
             sheetState = sheetState,
             onDismiss = viewModel::onDismissNotificationPermission,

@@ -44,11 +44,20 @@ class FirestoreOrderService @Inject constructor(
 
     /**
      * Get orders by user ID
+     * @param userId User ID to filter by
+     * @param restaurantId Restaurant ID to filter by (for multi-tenant isolation)
      */
-    suspend fun getOrdersByUserId(userId: String): Result<List<Order>> {
+    suspend fun getOrdersByUserId(userId: String, restaurantId: String? = null): Result<List<Order>> {
         return try {
-            val snapshot = firestore.collection(COLLECTION_ORDERS)
+            var query = firestore.collection(COLLECTION_ORDERS)
                 .whereEqualTo("userId", userId)
+
+            // IMPORTANT: Filter by restaurantId for multi-tenant isolation
+            if (restaurantId != null) {
+                query = query.whereEqualTo("restaurantId", restaurantId)
+            }
+
+            val snapshot = query
                 .orderBy("createdAt", Query.Direction.DESCENDING)
                 .get()
                 .await()
@@ -125,10 +134,19 @@ class FirestoreOrderService @Inject constructor(
 
     /**
      * Observe orders by user ID in real-time
+     * @param userId User ID to filter by
+     * @param restaurantId Restaurant ID to filter by (for multi-tenant isolation)
      */
-    fun observeOrdersByUserId(userId: String): Flow<Result<List<Order>>> = callbackFlow {
-        val listenerRegistration = firestore.collection(COLLECTION_ORDERS)
+    fun observeOrdersByUserId(userId: String, restaurantId: String? = null): Flow<Result<List<Order>>> = callbackFlow {
+        var query = firestore.collection(COLLECTION_ORDERS)
             .whereEqualTo("userId", userId)
+
+        // IMPORTANT: Filter by restaurantId for multi-tenant isolation
+        if (restaurantId != null) {
+            query = query.whereEqualTo("restaurantId", restaurantId)
+        }
+
+        val listenerRegistration = query
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
@@ -172,10 +190,19 @@ class FirestoreOrderService @Inject constructor(
 
     /**
      * Observe active orders (not completed/rejected) for user
+     * @param userId User ID to filter by
+     * @param restaurantId Restaurant ID to filter by (for multi-tenant isolation)
      */
-    fun observeActiveOrdersByUserId(userId: String): Flow<Result<List<Order>>> = callbackFlow {
-        val listenerRegistration = firestore.collection(COLLECTION_ORDERS)
+    fun observeActiveOrdersByUserId(userId: String, restaurantId: String? = null): Flow<Result<List<Order>>> = callbackFlow {
+        var query = firestore.collection(COLLECTION_ORDERS)
             .whereEqualTo("userId", userId)
+
+        // IMPORTANT: Filter by restaurantId for multi-tenant isolation
+        if (restaurantId != null) {
+            query = query.whereEqualTo("restaurantId", restaurantId)
+        }
+
+        val listenerRegistration = query
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
@@ -220,22 +247,61 @@ class FirestoreOrderService @Inject constructor(
 
     /**
      * Cancel order (client action)
+     * @param orderId ID of the order to cancel
+     * @param reason Optional cancellation reason provided by client
      */
-    suspend fun cancelOrder(orderId: String): Result<Unit> {
+    suspend fun cancelOrder(orderId: String, reason: String? = null): Result<Unit> {
         return try {
-            firestore.collection(COLLECTION_ORDERS)
+            android.util.Log.d("FirestoreOrderService", "=== CANCEL ORDER START ===")
+            android.util.Log.d("FirestoreOrderService", "Order ID: $orderId")
+            android.util.Log.d("FirestoreOrderService", "Reason: ${reason ?: "null"}")
+
+            // Log current user's auth info
+            val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+            android.util.Log.d("FirestoreOrderService", "Current user UID: ${currentUser?.uid}")
+
+            // Get and log ID token claims
+            currentUser?.getIdToken(false)?.await()?.let { tokenResult ->
+                android.util.Log.d("FirestoreOrderService", "Token claims: ${tokenResult.claims}")
+                android.util.Log.d("FirestoreOrderService", "restaurantId claim: ${tokenResult.claims["restaurantId"]}")
+                android.util.Log.d("FirestoreOrderService", "role claim: ${tokenResult.claims["role"]}")
+            }
+
+            // First, get the current order to log its state
+            val orderDoc = firestore.collection(COLLECTION_ORDERS)
                 .document(orderId)
-                .update(
-                    mapOf(
-                        "status" to OrderStatus.REJECTED.toApiString(),
-                        "rejectionReason" to "Cancelled by customer",
-                        "updatedAt" to Timestamp.now()
-                    )
-                )
+                .get()
                 .await()
 
+            android.util.Log.d("FirestoreOrderService", "Current order status: ${orderDoc.getString("status")}")
+            android.util.Log.d("FirestoreOrderService", "Current order restaurantId: ${orderDoc.getString("restaurantId")}")
+            android.util.Log.d("FirestoreOrderService", "Current order userId: ${orderDoc.getString("userId")}")
+
+            val updateData = mutableMapOf<String, Any>(
+                "status" to OrderStatus.CANCELLED.toApiString(),
+                "updatedAt" to Timestamp.now()
+            )
+
+            // Add rejection reason if provided
+            if (!reason.isNullOrBlank()) {
+                updateData["rejectionReason"] = reason
+            }
+
+            android.util.Log.d("FirestoreOrderService", "Update data: $updateData")
+            android.util.Log.d("FirestoreOrderService", "Status value being sent: ${OrderStatus.CANCELLED.toApiString()}")
+
+            firestore.collection(COLLECTION_ORDERS)
+                .document(orderId)
+                .update(updateData)
+                .await()
+
+            android.util.Log.d("FirestoreOrderService", "=== CANCEL ORDER SUCCESS ===")
             Result.Success(Unit)
         } catch (e: Exception) {
+            android.util.Log.e("FirestoreOrderService", "=== CANCEL ORDER FAILED ===")
+            android.util.Log.e("FirestoreOrderService", "Error: ${e.message}")
+            android.util.Log.e("FirestoreOrderService", "Error type: ${e.javaClass.simpleName}")
+            e.printStackTrace()
             Result.Error(Exception("Failed to cancel order: ${e.message}"))
         }
     }

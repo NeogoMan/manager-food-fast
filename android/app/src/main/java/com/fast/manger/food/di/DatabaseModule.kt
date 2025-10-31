@@ -32,6 +32,7 @@ object DatabaseModule {
             FastFoodDatabase::class.java,
             "fast_food_db"
         )
+            .addMigrations(FastFoodDatabase.MIGRATION_1_2) // Add migration for restaurantId
             .fallbackToDestructiveMigration() // For development - remove in production
             .build()
     }

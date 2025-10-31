@@ -65,13 +65,14 @@ export const menuService = {
   },
 
   // Create menu item
-  async create(menuItem) {
+  async create(menuItem, restaurantId) {
     const docRef = await addDoc(collection(db, 'menu'), {
       ...menuItem,
+      restaurantId, // IMPORTANT: Required for multi-tenant security rules
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     });
-    return { id: docRef.id, ...menuItem };
+    return { id: docRef.id, ...menuItem, restaurantId };
   },
 
   // Update menu item
@@ -170,7 +171,7 @@ export const ordersService = {
   },
 
   // Create order
-  async create(orderData) {
+  async create(orderData, restaurantId) {
     // Generate order number
     const orderNumber = `ORD-${Date.now()}`;
 
@@ -181,6 +182,7 @@ export const ordersService = {
       ...orderData,
       orderNumber,
       status,
+      restaurantId, // IMPORTANT: Required for multi-tenant security rules
       // Initialize payment status as unpaid
       paymentStatus: 'unpaid',
       paymentAmount: null,
@@ -195,6 +197,7 @@ export const ordersService = {
       id: docRef.id,
       orderNumber,
       ...orderData,
+      restaurantId,
       status,
       paymentStatus: 'unpaid',
     };
@@ -234,6 +237,11 @@ export const ordersService = {
 
     // Apply filters if provided
     const constraints = [];
+
+    // IMPORTANT: Always filter by restaurantId for multi-tenant isolation
+    if (filterOptions.restaurantId) {
+      constraints.push(where('restaurantId', '==', filterOptions.restaurantId));
+    }
 
     if (filterOptions.status) {
       if (Array.isArray(filterOptions.status)) {
@@ -338,8 +346,15 @@ export const ordersService = {
  */
 export const usersService = {
   // Get all users
-  async getAll() {
-    const querySnapshot = await getDocs(collection(db, 'users'));
+  async getAll(restaurantId = null) {
+    let q = collection(db, 'users');
+
+    // IMPORTANT: Filter by restaurantId for multi-tenant isolation
+    if (restaurantId) {
+      q = query(q, where('restaurantId', '==', restaurantId));
+    }
+
+    const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
@@ -452,14 +467,20 @@ export const notificationsService = {
  */
 export const dashboardService = {
   // Get today's stats
-  async getTodayStats() {
+  async getTodayStats(restaurantId) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const q = query(
-      collection(db, 'orders'),
+    const constraints = [
       where('createdAt', '>=', Timestamp.fromDate(today))
-    );
+    ];
+
+    // IMPORTANT: Filter by restaurantId for multi-tenant isolation
+    if (restaurantId) {
+      constraints.push(where('restaurantId', '==', restaurantId));
+    }
+
+    const q = query(collection(db, 'orders'), ...constraints);
 
     const querySnapshot = await getDocs(q);
     const orders = querySnapshot.docs.map(doc => doc.data());
@@ -481,12 +502,18 @@ export const dashboardService = {
   },
 
   // Get stats for date range
-  async getStatsForRange(startDate, endDate) {
-    const q = query(
-      collection(db, 'orders'),
+  async getStatsForRange(startDate, endDate, restaurantId) {
+    const constraints = [
       where('createdAt', '>=', Timestamp.fromDate(startDate)),
       where('createdAt', '<=', Timestamp.fromDate(endDate))
-    );
+    ];
+
+    // IMPORTANT: Filter by restaurantId for multi-tenant isolation
+    if (restaurantId) {
+      constraints.push(where('restaurantId', '==', restaurantId));
+    }
+
+    const q = query(collection(db, 'orders'), ...constraints);
 
     const querySnapshot = await getDocs(q);
     const orders = querySnapshot.docs.map(doc => doc.data());
@@ -506,9 +533,16 @@ export const dashboardService = {
   },
 
   // Get filter options (users by role)
-  async getFilterOptions() {
+  async getFilterOptions(restaurantId) {
     try {
-      const usersSnapshot = await getDocs(collection(db, 'users'));
+      let q = collection(db, 'users');
+
+      // IMPORTANT: Filter by restaurantId for multi-tenant isolation
+      if (restaurantId) {
+        q = query(q, where('restaurantId', '==', restaurantId));
+      }
+
+      const usersSnapshot = await getDocs(q);
       const users = usersSnapshot.docs.map(doc => doc.data());
 
       const caissiers = users
@@ -531,15 +565,20 @@ export const dashboardService = {
 
   // Get comprehensive statistics with filters
   async getStatistics(params = {}) {
-    const { start_date, end_date, status: statusFilter } = params;
+    const { start_date, end_date, status: statusFilter, restaurantId } = params;
 
     // Build query constraints
-    const constraints = [orderBy('createdAt', 'desc')];
+    const constraints = [];
+
+    // IMPORTANT: Filter by restaurantId for multi-tenant isolation (first constraint)
+    if (restaurantId) {
+      constraints.push(where('restaurantId', '==', restaurantId));
+    }
 
     if (start_date) {
       const startDate = new Date(start_date);
       startDate.setHours(0, 0, 0, 0);
-      constraints.unshift(where('createdAt', '>=', Timestamp.fromDate(startDate)));
+      constraints.push(where('createdAt', '>=', Timestamp.fromDate(startDate)));
     }
 
     if (end_date) {
@@ -547,6 +586,9 @@ export const dashboardService = {
       endDate.setHours(23, 59, 59, 999);
       constraints.push(where('createdAt', '<=', Timestamp.fromDate(endDate)));
     }
+
+    // Add orderBy last
+    constraints.push(orderBy('createdAt', 'desc'));
 
     const q = query(collection(db, 'orders'), ...constraints);
     const querySnapshot = await getDocs(q);

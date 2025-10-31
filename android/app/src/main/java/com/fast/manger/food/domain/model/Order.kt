@@ -8,6 +8,7 @@ data class Order(
     val id: String,
     val orderNumber: String,
     val userId: String? = null,
+    val restaurantId: String? = null,
     val customerName: String? = null,
     val items: List<OrderItem>,
     val totalAmount: Double,
@@ -33,6 +34,7 @@ data class Order(
     fun isActive(): Boolean {
         return status !in listOf(
             OrderStatus.COMPLETED,
+            OrderStatus.CANCELLED,
             OrderStatus.REJECTED
         )
     }
@@ -55,14 +57,12 @@ enum class OrderStatus {
     PREPARING,
     READY,
     COMPLETED,
+    CANCELLED,
     REJECTED;
 
     companion object {
         fun fromString(value: String): OrderStatus {
             val normalizedValue = value.trim().lowercase()
-
-            // Debug logging to see what we're getting from Firestore
-            android.util.Log.d("OrderStatus", "Parsing status string: '$value' (normalized: '$normalizedValue')")
 
             val status = when (normalizedValue) {
                 "awaiting_approval", "awaiting approval", "en_attente_approbation" -> AWAITING_APPROVAL
@@ -70,14 +70,11 @@ enum class OrderStatus {
                 "preparing", "en_preparation", "preparation" -> PREPARING
                 "ready", "pret", "prêt" -> READY
                 "completed", "complete", "terminé", "termine", "complété", "complete" -> COMPLETED
-                "rejected", "rejeté", "rejete", "annulé", "annule" -> REJECTED
-                else -> {
-                    android.util.Log.w("OrderStatus", "Unknown status string: '$value', defaulting to PENDING")
-                    PENDING
-                }
+                "cancelled", "annulé", "annule" -> CANCELLED
+                "rejected", "rejeté", "rejete", "refusé", "refuse" -> REJECTED
+                else -> PENDING
             }
 
-            android.util.Log.d("OrderStatus", "Parsed to: $status")
             return status
         }
     }
@@ -91,6 +88,7 @@ enum class OrderStatus {
             PREPARING -> "En préparation"
             READY -> "Prêt"
             COMPLETED -> "Complété"
+            CANCELLED -> "Annulé"
             REJECTED -> "Rejeté"
         }
     }
@@ -102,7 +100,8 @@ enum class OrderStatus {
             PREPARING -> "#6366f1" // Indigo
             READY -> "#10b981" // Green
             COMPLETED -> "#6b7280" // Gray
-            REJECTED -> "#ef4444" // Red
+            CANCELLED -> "#dc2626" // Dark Red
+            REJECTED -> "#f59e0b" // Orange
         }
     }
 }

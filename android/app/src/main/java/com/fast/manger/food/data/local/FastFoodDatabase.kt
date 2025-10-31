@@ -3,6 +3,8 @@ package com.fast.manger.food.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.fast.manger.food.data.local.dao.MenuItemDao
 import com.fast.manger.food.data.local.dao.OrderDao
 import com.fast.manger.food.data.local.dao.UserDao
@@ -21,7 +23,7 @@ import com.fast.manger.food.data.local.entity.UserEntity
         OrderEntity::class,
         UserEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -44,5 +46,16 @@ abstract class FastFoodDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "fast_food_database"
+
+        /**
+         * Migration from version 1 to 2
+         * Adds restaurantId column to orders table for multi-tenant support
+         */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Add restaurantId column to orders table
+                database.execSQL("ALTER TABLE orders ADD COLUMN restaurantId TEXT")
+            }
+        }
     }
 }

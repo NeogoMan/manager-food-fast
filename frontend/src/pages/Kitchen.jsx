@@ -13,7 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 export default function Kitchen() {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useContext(ThemeContext);
-  const { user, logout } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
 
   const [ordersList, setOrdersList] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -155,10 +155,35 @@ export default function Kitchen() {
 
   // Setup Firestore real-time subscription for kitchen orders
   useEffect(() => {
-    setIsLoading(true);
+    // Wait for auth to finish loading before subscribing
+    if (authLoading) {
+      setIsLoading(true);
+      return;
+    }
 
-    // Subscribe to kitchen orders (pending + preparing + ready)
-    const unsubscribe = ordersService.subscribeToKitchen((orders) => {
+    // Don't subscribe if user is not authenticated
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
+    // Extract restaurantId from JWT token and setup subscription
+    async function setupKitchenSubscription() {
+      try {
+        const auth = await import('../config/firebase').then(m => m.auth);
+        const idTokenResult = await auth.currentUser.getIdTokenResult();
+        const restaurantId = idTokenResult.claims.restaurantId;
+
+        if (!restaurantId) {
+          console.error('No restaurantId found in auth token');
+          setIsLoading(false);
+          return;
+        }
+
+        setIsLoading(true);
+
+        // Subscribe to kitchen orders (pending + preparing + ready) with restaurantId filter
+        const unsubscribe = ordersService.subscribe((orders) => {
       console.log('🍳 Kitchen orders received:', orders.length, 'orders');
 
       // Detect new orders and show notification (skip on first load)
@@ -180,14 +205,34 @@ export default function Kitchen() {
         );
       }
 
-      previousOrdersCount.current = orders.length;
-      setOrdersList(orders);
-      setIsLoading(false);
+          previousOrdersCount.current = orders.length;
+          setOrdersList(orders);
+          setIsLoading(false);
+        }, {
+          status: ['pending', 'preparing', 'ready'],
+          restaurantId
+        });
+
+        return unsubscribe;
+      } catch (error) {
+        console.error('Error setting up kitchen subscription:', error);
+        setIsLoading(false);
+        return null;
+      }
+    }
+
+    let unsubscribeFunction = null;
+    setupKitchenSubscription().then(unsub => {
+      unsubscribeFunction = unsub;
     });
 
     // Cleanup subscription on unmount
-    return () => unsubscribe();
-  }, [playNotificationSound, showToast, showBrowserNotification]);
+    return () => {
+      if (unsubscribeFunction) {
+        unsubscribeFunction();
+      }
+    };
+  }, [authLoading, user, playNotificationSound, showToast, showBrowserNotification]);
 
   async function updateOrderStatus(orderId, newStatus) {
     try {

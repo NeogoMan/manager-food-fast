@@ -28,13 +28,28 @@ export default function Users() {
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
 
   useEffect(() => {
+    // Don't fetch users if not authenticated yet
+    if (!currentUser) {
+      setLoading(false);
+      return;
+    }
     fetchUsers();
-  }, []);
+  }, [currentUser]);
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const data = await usersService.getAll();
+
+      // Get restaurantId from JWT token
+      const auth = await import('../config/firebase').then(m => m.auth);
+      const idTokenResult = await auth.currentUser.getIdTokenResult();
+      const restaurantId = idTokenResult.claims.restaurantId;
+
+      if (!restaurantId) {
+        throw new Error('No restaurantId found in auth token');
+      }
+
+      const data = await usersService.getAll(restaurantId);
       setUsersList(data);
     } catch (error) {
       showToast(error.message || 'Erreur lors du chargement des utilisateurs', 'error');

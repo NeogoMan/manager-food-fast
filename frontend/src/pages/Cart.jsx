@@ -42,6 +42,15 @@ export default function Cart() {
     try {
       setLoading(true);
 
+      // Get restaurantId from JWT token
+      const auth = await import('../config/firebase').then(m => m.auth);
+      const idTokenResult = await auth.currentUser.getIdTokenResult();
+      const restaurantId = idTokenResult.claims.restaurantId;
+
+      if (!restaurantId) {
+        throw new Error('No restaurantId found in auth token');
+      }
+
       // Calculate total
       const totalAmount = cartItems.reduce((sum, item) => {
         const price = typeof item.price === 'number' ? item.price : parseFloat(item.price);
@@ -66,7 +75,7 @@ export default function Cart() {
         status: 'awaiting_approval', // Client orders always need approval
       };
 
-      await ordersService.create(orderData);
+      await ordersService.create(orderData, restaurantId);
 
       // Show success message
       showToast('Votre commande est en attente d\'approbation', 'success');

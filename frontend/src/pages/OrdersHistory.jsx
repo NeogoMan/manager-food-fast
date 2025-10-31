@@ -8,7 +8,7 @@ import { orders, status, actions, form, loading, ui } from '../utils/translation
 import { useAuth } from '../contexts/AuthContext';
 
 export default function OrdersHistory() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [ordersList, setOrdersList] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -29,6 +29,18 @@ export default function OrdersHistory() {
 
   // Setup real-time listener for completed and cancelled orders
   useEffect(() => {
+    // Wait for auth to finish loading before subscribing
+    if (authLoading) {
+      setIsLoading(true);
+      return;
+    }
+
+    // Don't subscribe if user is not authenticated
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
 
     const unsubscribe = ordersService.subscribe((orders) => {
@@ -41,10 +53,15 @@ export default function OrdersHistory() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [authLoading, user]);
 
   // Load users for displaying client names
   useEffect(() => {
+    // Wait for auth to finish loading
+    if (authLoading || !user) {
+      return;
+    }
+
     async function loadUsers() {
       try {
         const users = await usersService.getAll();
@@ -58,7 +75,7 @@ export default function OrdersHistory() {
       }
     }
     loadUsers();
-  }, []);
+  }, [authLoading, user]);
 
   // Apply filters whenever ordersList or filter states change
   useEffect(() => {

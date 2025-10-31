@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { dashboardService } from '../services/firestore';
 import { dashboard, status as statusTranslations } from '../utils/translations';
 
 export default function Dashboard() {
+  const { user, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [filterOptions, setFilterOptions] = useState(null);
@@ -20,23 +22,68 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    fetchFilterOptions();
-    fetchData();
-  }, []);
+    // Wait for auth to finish loading
+    if (authLoading) {
+      setLoading(true);
+      return;
+    }
 
-  const fetchFilterOptions = async () => {
+    // Don't fetch data if not authenticated
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    // Extract restaurantId from JWT token and fetch data
+    async function initializeDashboard() {
+      try {
+        const auth = await import('../config/firebase').then(m => m.auth);
+        const idTokenResult = await auth.currentUser.getIdTokenResult();
+        const restaurantId = idTokenResult.claims.restaurantId;
+
+        if (!restaurantId) {
+          console.error('No restaurantId found in auth token');
+          setError('Restaurant ID not found in authentication token');
+          setLoading(false);
+          return;
+        }
+
+        fetchFilterOptions(restaurantId);
+        fetchData(filters, restaurantId);
+      } catch (err) {
+        console.error('Error initializing dashboard:', err);
+        setError(dashboard.noData.error);
+        setLoading(false);
+      }
+    }
+
+    initializeDashboard();
+  }, [authLoading, user]);
+
+  const fetchFilterOptions = async (restaurantId) => {
     try {
-      const options = await dashboardService.getFilterOptions();
+      const options = await dashboardService.getFilterOptions(restaurantId);
       setFilterOptions(options);
     } catch (err) {
       console.error('Error fetching filter options:', err);
     }
   };
 
-  const fetchData = async (customFilters = filters) => {
+  const fetchData = async (customFilters = filters, restaurantId = null) => {
     try {
       setLoading(true);
       setError(null);
+
+      // If restaurantId not provided, extract from JWT token
+      if (!restaurantId) {
+        const auth = await import('../config/firebase').then(m => m.auth);
+        const idTokenResult = await auth.currentUser.getIdTokenResult();
+        restaurantId = idTokenResult.claims.restaurantId;
+
+        if (!restaurantId) {
+          throw new Error('No restaurantId found in auth token');
+        }
+      }
 
       // Calculate date range based on selection
       const { start_date, end_date } = calculateDateRange(customFilters.dateRange, customFilters);
@@ -47,7 +94,8 @@ export default function Dashboard() {
         caissier: customFilters.caissier,
         cuisinier: customFilters.cuisinier,
         product: customFilters.product,
-        status: customFilters.status
+        status: customFilters.status,
+        restaurantId  // IMPORTANT: Pass restaurantId for multi-tenant filtering
       };
 
       const statistics = await dashboardService.getStatistics(params);

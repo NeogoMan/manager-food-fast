@@ -13,6 +13,7 @@ data class OrdersUiState(
     val isRefreshing: Boolean = false,
     val isCancellingOrder: Boolean = false,
     val cancellingOrderId: String? = null,
+    val cancellationReason: String = "",
     val error: String? = null
 )
 

@@ -12,7 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import printerService from '../services/printerService';
 
 export default function Orders() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [ordersList, setOrdersList] = useState([]);
   const [pendingApprovalOrders, setPendingApprovalOrders] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
@@ -58,37 +58,83 @@ export default function Orders() {
 
   // Setup real-time listeners for orders
   useEffect(() => {
-    setIsLoading(true);
-
-    // Subscribe to orders with role-based filtering
-    // Clients only see their own orders, staff see all orders
-    const subscriptionFilter = user?.role === 'client' ? { userId: user.id } : {};
-
-    const unsubscribeOrders = ordersService.subscribe((orders) => {
-      setOrdersList(orders);
-      setIsLoading(false);
-    }, subscriptionFilter);
-
-    // Subscribe to pending approval orders (for staff)
-    let unsubscribeApproval;
-    if (user?.role === 'manager' || user?.role === 'cashier') {
-      unsubscribeApproval = ordersService.subscribe((orders) => {
-        const pending = orders.filter(o => o.status === 'awaiting_approval');
-        setPendingApprovalOrders(pending);
-      }, { status: 'awaiting_approval' });
+    // Wait for auth to finish loading before subscribing
+    if (authLoading) {
+      setIsLoading(true);
+      return;
     }
+
+    // Don't subscribe if user is not authenticated
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
+    // Get restaurantId from Firebase Auth token claims
+    async function setupSubscriptions() {
+      try {
+        const auth = await import('../config/firebase').then(m => m.auth);
+        const idTokenResult = await auth.currentUser.getIdTokenResult();
+        const restaurantId = idTokenResult.claims.restaurantId;
+
+        if (!restaurantId) {
+          console.error('No restaurantId found in auth token');
+          setIsLoading(false);
+          return;
+        }
+
+        setIsLoading(true);
+
+        // Subscribe to orders with role-based filtering
+        // Clients only see their own orders, staff see all orders
+        const subscriptionFilter = user?.role === 'client'
+          ? { userId: user.id, restaurantId }
+          : { restaurantId };
+
+        const unsubscribeOrders = ordersService.subscribe((orders) => {
+          setOrdersList(orders);
+          setIsLoading(false);
+        }, subscriptionFilter);
+
+        // Subscribe to pending approval orders (for staff)
+        let unsubscribeApproval;
+        if (user?.role === 'manager' || user?.role === 'cashier') {
+          unsubscribeApproval = ordersService.subscribe((orders) => {
+            const pending = orders.filter(o => o.status === 'awaiting_approval');
+            setPendingApprovalOrders(pending);
+          }, { status: 'awaiting_approval', restaurantId });
+        }
+
+        // Store unsubscribe functions for cleanup
+        return { unsubscribeOrders, unsubscribeApproval };
+      } catch (error) {
+        console.error('Error setting up subscriptions:', error);
+        setIsLoading(false);
+        return null;
+      }
+    }
+
+    let unsubscribeFunctions = null;
+    setupSubscriptions().then(result => {
+      unsubscribeFunctions = result;
+    });
 
     // Cleanup subscriptions on unmount
     return () => {
-      unsubscribeOrders();
-      if (unsubscribeApproval) {
-        unsubscribeApproval();
+      if (unsubscribeFunctions) {
+        unsubscribeFunctions.unsubscribeOrders?.();
+        unsubscribeFunctions.unsubscribeApproval?.();
       }
     };
-  }, [user?.role, user?.id]);
+  }, [authLoading, user?.role, user?.id]);
 
   // Load menu items once (no real-time needed)
   useEffect(() => {
+    // Wait for auth to finish loading
+    if (authLoading || !user) {
+      return;
+    }
+
     async function loadMenuItems() {
       try {
         const data = await menuService.getAvailable();
@@ -98,13 +144,22 @@ export default function Orders() {
       }
     }
     loadMenuItems();
-  }, []);
+  }, [authLoading, user]);
 
   // Load users for displaying client names
   useEffect(() => {
+    // Wait for auth to finish loading
+    if (authLoading || !user) {
+      return;
+    }
+
     async function loadUsers() {
       try {
-        const users = await usersService.getAll();
+        const auth = await import('../config/firebase').then(m => m.auth);
+        const idTokenResult = await auth.currentUser.getIdTokenResult();
+        const restaurantId = idTokenResult.claims.restaurantId;
+
+        const users = await usersService.getAll(restaurantId);
         const map = {};
         users.forEach(u => {
           map[u.id] = u;
@@ -115,7 +170,7 @@ export default function Orders() {
       }
     }
     loadUsers();
-  }, []);
+  }, [authLoading, user]);
 
   // Check printer status on mount and update periodically
   useEffect(() => {
@@ -236,6 +291,15 @@ export default function Orders() {
     }
 
     try {
+      // Get restaurantId from JWT token
+      const auth = await import('../config/firebase').then(m => m.auth);
+      const idTokenResult = await auth.currentUser.getIdTokenResult();
+      const restaurantId = idTokenResult.claims.restaurantId;
+
+      if (!restaurantId) {
+        throw new Error('No restaurantId found in auth token');
+      }
+
       // Determine initial status based on user role
       // Staff orders go directly to 'pending', client orders need approval
       const initialStatus = (user?.role === 'manager' || user?.role === 'cashier')
@@ -258,7 +322,7 @@ export default function Orders() {
         totalAmount: calculateTotal(),
         itemCount: orderItems.reduce((sum, item) => sum + item.quantity, 0),
         status: initialStatus, // Pass the initial status
-      });
+      }, restaurantId);
 
       setIsCreateModalOpen(false);
       // Real-time listener will automatically update the list
