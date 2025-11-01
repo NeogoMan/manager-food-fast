@@ -275,8 +275,7 @@ export const removeFCMToken = onCall(async (request) => {
 
 /**
  * Cloud Function: authenticateUser
- * Authenticates a user with username/phone and password
- * Supports both username and phone number login
+ * Authenticates a user with username and password
  * Returns a Firebase Custom Auth Token
  */
 export const authenticateUser = onCall(async (request) => {
@@ -286,24 +285,17 @@ export const authenticateUser = onCall(async (request) => {
   if (!username || !password) {
     throw new HttpsError(
         "invalid-argument",
-        "Username or phone number and password are required",
+        "Username and password are required",
     );
   }
 
   try {
-    // Query Firestore for user by username OR phone
+    // Query Firestore for user by username
     const usersRef = db.collection("users");
-
-    // Try to find user by username first
-    let querySnapshot = await usersRef.where("username", "==", username).limit(1).get();
-
-    // If not found by username, try phone number
-    if (querySnapshot.empty) {
-      querySnapshot = await usersRef.where("phone", "==", username).limit(1).get();
-    }
+    const querySnapshot = await usersRef.where("username", "==", username).limit(1).get();
 
     if (querySnapshot.empty) {
-      throw new HttpsError("not-found", "Invalid username/phone or password");
+      throw new HttpsError("not-found", "Invalid username or password");
     }
 
     const userDoc = querySnapshot.docs[0];
@@ -322,46 +314,21 @@ export const authenticateUser = onCall(async (request) => {
       throw new HttpsError("not-found", "Invalid username or password");
     }
 
-    console.log(`🔐 === AUTHENTICATE USER: Login successful ===`);
-    console.log(`   User UID: ${userDoc.id}`);
-    console.log(`   Username: ${userData.username}`);
-    console.log(`   Name: ${userData.name}`);
-    console.log(`   Role: ${userData.role}`);
-    console.log(`   Restaurant ID: ${userData.restaurantId || "NULL"} ⭐`);
-
-    // Support for multi-restaurant: Ensure restaurantIds array exists
-    const restaurantIds = userData.restaurantIds || (userData.restaurantId ? [userData.restaurantId] : []);
-    const activeRestaurantId = userData.activeRestaurantId || userData.restaurantId || null;
-
-    // If user document doesn't have new fields, update it
-    if (!userData.restaurantIds && userData.restaurantId) {
-      console.log(`📝 Migrating user ${userDoc.id} to multi-restaurant format`);
-      await userDoc.ref.update({
-        restaurantIds: [userData.restaurantId],
-        activeRestaurantId: userData.restaurantId,
-      });
-    }
-
-    // Prepare custom claims with all user info including restaurantId and restaurantIds
+    // Prepare custom claims with all user info including restaurantId
     const customClaims = {
       role: userData.role,
       username: userData.username,
       name: userData.name,
       phone: userData.phone,
-      restaurantId: activeRestaurantId, // Points to active restaurant
-      restaurantIds: restaurantIds, // Array of all restaurants user has access to
-      activeRestaurantId: activeRestaurantId, // Currently selected restaurant
+      restaurantId: userData.restaurantId || null, // Multi-tenant: Include restaurantId
       isSuperAdmin: userData.isSuperAdmin || false,
     };
 
-    console.log(`📝 Setting custom claims:`, customClaims);
     // Set custom claims
     await auth.setCustomUserClaims(userDoc.id, customClaims);
-    console.log(`✅ Custom claims set successfully`);
 
     // Generate custom auth token with claims
     const customToken = await auth.createCustomToken(userDoc.id, customClaims);
-    console.log(`🎫 Custom token generated with restaurantId: ${activeRestaurantId || "NULL"}`);
 
     // Update last login
     await userDoc.ref.update({
@@ -378,9 +345,7 @@ export const authenticateUser = onCall(async (request) => {
         role: userData.role,
         phone: userData.phone || null,
         isActive: isActive,
-        restaurantId: activeRestaurantId, // Legacy field - now points to active restaurant
-        restaurantIds: restaurantIds, // NEW: Array of all restaurants user has access to
-        activeRestaurantId: activeRestaurantId, // NEW: Currently selected restaurant
+        restaurantId: userData.restaurantId || null, // Multi-tenant: Include restaurantId
         isSuperAdmin: userData.isSuperAdmin || false,
         createdAt: userData.createdAt || Date.now(),
         updatedAt: userData.updatedAt || Date.now(),
@@ -1317,3 +1282,367 @@ export const setActiveRestaurant = onCall(async (request) => {
     throw new HttpsError("internal", "Failed to set active restaurant");
   }
 });
+
+// ============================================================================
+// RESTAURANT MANAGEMENT FUNCTIONS (SUPER ADMIN ONLY)
+// ============================================================================
+
+/**
+ * Cloud Function: createRestaurant
+ * Creates a new restaurant (super admin only)
+ */
+export const createRestaurant = onCall(async (request) => {
+  // Require super admin authentication
+  if (!request.auth || !request.auth.token.isSuperAdmin) {
+    throw new HttpsError(
+        "permission-denied",
+        "Only super admins can create restaurants",
+    );
+  }
+
+  const {name, email, phone, address, plan, adminUser} = request.data;
+
+  // Validate input
+  if (!name || !email || !plan) {
+    throw new HttpsError(
+        "invalid-argument",
+        "Restaurant name, email, and plan are required",
+    );
+  }
+
+  // Validate plan
+  const validPlans = ["basic", "pro", "enterprise"];
+  if (!validPlans.includes(plan)) {
+    throw new HttpsError("invalid-argument", "Invalid plan");
+  }
+
+  try {
+    // Generate unique restaurant code
+    const restaurantCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    // Create restaurant document
+    const restaurantRef = await db.collection("restaurants").add({
+      name,
+      email,
+      phone: phone || null,
+      address: address || null,
+      restaurantCode,
+      plan,
+      status: "active",
+      billing: {
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+        cancelAtPeriodEnd: false,
+        trialEndsAt: null,
+      },
+      features: getFeaturesByPlan(plan),
+      branding: {
+        logoUrl: null,
+        primaryColor: "#FF5722",
+        secondaryColor: "#FFC107",
+        accentColor: "#4CAF50",
+        customDomain: null,
+      },
+      usage: {
+        totalOrders: 0,
+        totalRevenue: 0,
+        activeStaffUsers: 0,
+        storageUsedMB: 0,
+        lastActivityAt: new Date(),
+      },
+      createdAt: new Date(),
+      createdBy: request.auth.uid,
+      updatedAt: new Date(),
+      onboardingCompleted: false,
+      setupStep: "profile",
+    });
+
+    const restaurantId = restaurantRef.id;
+
+    // Create admin user if provided
+    if (adminUser && adminUser.username && adminUser.password && adminUser.name) {
+      // Hash password
+      const passwordHash = await bcrypt.hash(adminUser.password, 10);
+
+      // Create user record
+      const userRecord = await auth.createUser({
+        uid: db.collection("users").doc().id,
+        email: adminUser.email || email,
+        emailVerified: false,
+      });
+
+      // Set custom claims
+      await auth.setCustomUserClaims(userRecord.uid, {
+        role: "manager",
+        restaurantId: restaurantId,
+        isSuperAdmin: false,
+      });
+
+      // Create user document
+      await db.collection("users").doc(userRecord.uid).set({
+        username: adminUser.username,
+        passwordHash,
+        role: "manager",
+        name: adminUser.name,
+        email: adminUser.email || email,
+        phone: adminUser.phone || phone || null,
+        restaurantId: restaurantId,
+        isSuperAdmin: false,
+        status: "active",
+        createdAt: new Date(),
+        createdBy: request.auth.uid,
+      });
+    }
+
+    return {
+      success: true,
+      restaurantId,
+      restaurantCode,
+      message: "Restaurant created successfully",
+    };
+  } catch (error) {
+    console.error("Create restaurant error:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError("internal", "Failed to create restaurant");
+  }
+});
+
+/**
+ * Cloud Function: updateRestaurant
+ * Updates a restaurant's information (super admin only)
+ */
+export const updateRestaurant = onCall(async (request) => {
+  // Require super admin authentication
+  if (!request.auth || !request.auth.token.isSuperAdmin) {
+    throw new HttpsError(
+        "permission-denied",
+        "Only super admins can update restaurants",
+    );
+  }
+
+  const {restaurantId, updates} = request.data;
+
+  // Validate input
+  if (!restaurantId || !updates) {
+    throw new HttpsError(
+        "invalid-argument",
+        "Restaurant ID and updates are required",
+    );
+  }
+
+  try {
+    const restaurantDoc = await db.collection("restaurants").doc(restaurantId).get();
+
+    if (!restaurantDoc.exists) {
+      throw new HttpsError("not-found", "Restaurant not found");
+    }
+
+    const updateData = {
+      updatedAt: new Date(),
+      updatedBy: request.auth.uid,
+    };
+
+    // Update basic info
+    if (updates.name) updateData.name = updates.name;
+    if (updates.email) updateData.email = updates.email;
+    if (updates.phone !== undefined) updateData.phone = updates.phone || null;
+    if (updates.address) updateData.address = updates.address;
+
+    // Update plan if provided
+    if (updates.plan) {
+      const validPlans = ["basic", "pro", "enterprise"];
+      if (!validPlans.includes(updates.plan)) {
+        throw new HttpsError("invalid-argument", "Invalid plan");
+      }
+      updateData.plan = updates.plan;
+      updateData.features = getFeaturesByPlan(updates.plan);
+    }
+
+    // Update branding if provided
+    if (updates.branding) {
+      updateData.branding = {
+        ...restaurantDoc.data().branding,
+        ...updates.branding,
+      };
+    }
+
+    // Update Firestore
+    await db.collection("restaurants").doc(restaurantId).update(updateData);
+
+    return {
+      success: true,
+      message: "Restaurant updated successfully",
+    };
+  } catch (error) {
+    console.error("Update restaurant error:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError("internal", "Failed to update restaurant");
+  }
+});
+
+/**
+ * Cloud Function: listRestaurants
+ * Lists all restaurants (super admin only)
+ */
+export const listRestaurants = onCall(async (request) => {
+  // Require super admin authentication
+  if (!request.auth || !request.auth.token.isSuperAdmin) {
+    throw new HttpsError(
+        "permission-denied",
+        "Only super admins can list restaurants",
+    );
+  }
+
+  try {
+    const restaurantsSnapshot = await db.collection("restaurants")
+        .orderBy("createdAt", "desc")
+        .get();
+
+    const restaurants = [];
+    restaurantsSnapshot.forEach((doc) => {
+      restaurants.push({
+        id: doc.id,
+        ...doc.data(),
+      });
+    });
+
+    return {
+      success: true,
+      restaurants,
+    };
+  } catch (error) {
+    console.error("List restaurants error:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError("internal", "Failed to list restaurants");
+  }
+});
+
+/**
+ * Cloud Function: suspendRestaurant
+ * Suspends or activates a restaurant (super admin only)
+ */
+export const suspendRestaurant = onCall(async (request) => {
+  // Require super admin authentication
+  if (!request.auth || !request.auth.token.isSuperAdmin) {
+    throw new HttpsError(
+        "permission-denied",
+        "Only super admins can suspend restaurants",
+    );
+  }
+
+  const {restaurantId, status} = request.data;
+
+  // Validate input
+  if (!restaurantId || !status) {
+    throw new HttpsError(
+        "invalid-argument",
+        "Restaurant ID and status are required",
+    );
+  }
+
+  // Validate status
+  const validStatuses = ["active", "suspended", "cancelled"];
+  if (!validStatuses.includes(status)) {
+    throw new HttpsError("invalid-argument", "Invalid status");
+  }
+
+  try {
+    const restaurantDoc = await db.collection("restaurants").doc(restaurantId).get();
+
+    if (!restaurantDoc.exists) {
+      throw new HttpsError("not-found", "Restaurant not found");
+    }
+
+    // Update restaurant status
+    await db.collection("restaurants").doc(restaurantId).update({
+      status,
+      updatedAt: new Date(),
+      updatedBy: request.auth.uid,
+    });
+
+    // If suspending, also disable all users in this restaurant
+    if (status === "suspended" || status === "cancelled") {
+      const usersSnapshot = await db.collection("users")
+          .where("restaurantId", "==", restaurantId)
+          .get();
+
+      const batch = db.batch();
+      usersSnapshot.forEach((userDoc) => {
+        batch.update(userDoc.ref, {
+          status: "inactive",
+          updatedAt: new Date(),
+        });
+        // Also disable in Firebase Auth
+        auth.updateUser(userDoc.id, {disabled: true}).catch((err) => {
+          console.error(`Failed to disable user ${userDoc.id}:`, err);
+        });
+      });
+      await batch.commit();
+    }
+
+    return {
+      success: true,
+      message: `Restaurant ${status === "active" ? "activated" : status}`,
+    };
+  } catch (error) {
+    console.error("Suspend restaurant error:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError("internal", "Failed to update restaurant status");
+  }
+});
+
+/**
+ * Helper function: Get features by plan
+ */
+function getFeaturesByPlan(plan) {
+  const features = {
+    basic: {
+      analyticsEnabled: false,
+      mobileAppEnabled: false,
+      multiLocationEnabled: false,
+      customBrandingEnabled: false,
+      apiAccessEnabled: false,
+      prioritySupportEnabled: false,
+      maxStaffUsers: 3,
+      maxOrders: -1,
+    },
+    pro: {
+      analyticsEnabled: true,
+      mobileAppEnabled: true,
+      multiLocationEnabled: false,
+      customBrandingEnabled: false,
+      apiAccessEnabled: false,
+      prioritySupportEnabled: true,
+      maxStaffUsers: -1,
+      maxOrders: -1,
+    },
+    enterprise: {
+      analyticsEnabled: true,
+      mobileAppEnabled: true,
+      multiLocationEnabled: true,
+      customBrandingEnabled: true,
+      apiAccessEnabled: true,
+      prioritySupportEnabled: true,
+      maxStaffUsers: -1,
+      maxOrders: -1,
+    },
+  };
+
+  return features[plan] || features.basic;
+}

@@ -20,6 +20,9 @@ import Profile from './pages/Profile';
 import Dashboard from './pages/Dashboard';
 import { ClientLayout } from './components/M3';
 import useKioskMode from './hooks/useKioskMode';
+import AdminLayout from './components/AdminLayout';
+import Restaurants from './pages/admin/Restaurants';
+import CreateRestaurant from './pages/admin/CreateRestaurant';
 
 /**
  * Staff Layout wrapper that provides responsive sidebar spacing
@@ -103,6 +106,22 @@ function App() {
             <Routes>
               {/* Public Routes */}
               <Route path="/login" element={<Login />} />
+
+              {/* Admin Routes (Super Admin Only) */}
+              <Route
+                path="/admin/*"
+                element={
+                  <ProtectedRoute>
+                    <AdminLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="restaurants" element={<Restaurants />} />
+                <Route path="restaurants/new" element={<CreateRestaurant />} />
+                <Route path="analytics" element={<div style={{ padding: '20px', textAlign: 'center' }}>Analytics page coming soon...</div>} />
+                <Route path="settings" element={<div style={{ padding: '20px', textAlign: 'center' }}>Settings page coming soon...</div>} />
+                <Route index element={<Navigate to="/admin/restaurants" replace />} />
+              </Route>
 
               {/* Protected Routes - Single entry point */}
               <Route

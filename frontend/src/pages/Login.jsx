@@ -16,6 +16,11 @@ export default function Login() {
 
   // Redirect if already logged in
   if (user) {
+    // Super admin goes to admin panel
+    if (user.isSuperAdmin) {
+      return <Navigate to="/admin" replace />;
+    }
+
     // Redirect based on role
     const roleRedirects = {
       manager: '/',
