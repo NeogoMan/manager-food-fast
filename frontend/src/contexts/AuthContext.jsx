@@ -27,6 +27,7 @@ export function AuthProvider({ children }) {
             name: idTokenResult.claims.name || 'User',
             role: idTokenResult.claims.role || 'client',
             phone: idTokenResult.claims.phone || null,
+            isSuperAdmin: idTokenResult.claims.isSuperAdmin || false,
           });
         } else {
           setFirebaseUser(null);
@@ -64,6 +65,7 @@ export function AuthProvider({ children }) {
         name: userData.name,
         role: userData.role,
         phone: userData.phone,
+        isSuperAdmin: userData.isSuperAdmin || false,
       });
 
       return { user: userData };
