@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
-import { SidebarProvider } from './contexts/SidebarContext';
+import { SidebarProvider, useSidebar } from './contexts/SidebarContext';
 import Sidebar from './components/Sidebar';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
@@ -20,6 +20,31 @@ import Profile from './pages/Profile';
 import Dashboard from './pages/Dashboard';
 import { ClientLayout } from './components/M3';
 import useKioskMode from './hooks/useKioskMode';
+
+/**
+ * Staff Layout wrapper that provides responsive sidebar spacing
+ * Adjusts main content margin based on sidebar collapse state
+ */
+function StaffLayout({ children }) {
+  const { isCollapsed } = useSidebar();
+
+  return (
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+      <Sidebar />
+      <main
+        className={`
+          pt-16 md:pt-4
+          ${isCollapsed ? 'md:ml-20' : 'md:ml-64'}
+          px-4 md:px-6 lg:px-8
+          py-4 md:py-6 lg:py-8
+          transition-all duration-300
+        `}
+      >
+        {children}
+      </main>
+    </div>
+  );
+}
 
 function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -132,12 +157,9 @@ function App() {
                         path="/"
                         element={
                           <ProtectedRoute allowedRoles={['manager', 'cashier']}>
-                            <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                              <Sidebar />
-                              <main className="pt-16 md:pt-4 md:ml-64 px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
-                                <Orders />
-                              </main>
-                            </div>
+                            <StaffLayout>
+                              <Orders />
+                            </StaffLayout>
                           </ProtectedRoute>
                         }
                       />
@@ -146,12 +168,9 @@ function App() {
                         path="/dashboard"
                         element={
                           <ProtectedRoute allowedRoles={['manager']}>
-                            <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                              <Sidebar />
-                              <main className="pt-16 md:pt-4 md:ml-64 px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
-                                <Dashboard />
-                              </main>
-                            </div>
+                            <StaffLayout>
+                              <Dashboard />
+                            </StaffLayout>
                           </ProtectedRoute>
                         }
                       />
@@ -160,12 +179,9 @@ function App() {
                         path="/menu"
                         element={
                           <ProtectedRoute allowedRoles={['manager', 'cashier']}>
-                            <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                              <Sidebar />
-                              <main className="pt-16 md:pt-4 md:ml-64 px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
-                                <Menu />
-                              </main>
-                            </div>
+                            <StaffLayout>
+                              <Menu />
+                            </StaffLayout>
                           </ProtectedRoute>
                         }
                       />
@@ -174,12 +190,9 @@ function App() {
                         path="/orders-history"
                         element={
                           <ProtectedRoute allowedRoles={['manager', 'cashier']}>
-                            <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                              <Sidebar />
-                              <main className="pt-16 md:pt-4 md:ml-64 px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
-                                <OrdersHistory />
-                              </main>
-                            </div>
+                            <StaffLayout>
+                              <OrdersHistory />
+                            </StaffLayout>
                           </ProtectedRoute>
                         }
                       />
@@ -198,12 +211,9 @@ function App() {
                         path="/users"
                         element={
                           <ProtectedRoute allowedRoles={['manager']}>
-                            <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                              <Sidebar />
-                              <main className="pt-16 md:pt-4 md:ml-64 px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
-                                <Users />
-                              </main>
-                            </div>
+                            <StaffLayout>
+                              <Users />
+                            </StaffLayout>
                           </ProtectedRoute>
                         }
                       />
@@ -212,12 +222,9 @@ function App() {
                         path="/profile"
                         element={
                           <ProtectedRoute allowedRoles={['manager', 'cashier', 'cook']}>
-                            <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                              <Sidebar />
-                              <main className="pt-16 md:pt-4 md:ml-64 px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
-                                <Profile />
-                              </main>
-                            </div>
+                            <StaffLayout>
+                              <Profile />
+                            </StaffLayout>
                           </ProtectedRoute>
                         }
                       />
