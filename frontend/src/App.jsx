@@ -3,7 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
-import Navbar from './components/Navbar';
+import { SidebarProvider } from './contexts/SidebarContext';
+import Sidebar from './components/Sidebar';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Menu from './pages/Menu';
@@ -49,8 +50,9 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <CartProvider>
-          {/* Offline Banner */}
+        <SidebarProvider>
+          <CartProvider>
+            {/* Offline Banner */}
           {!isOnline && (
             <div
               style={{
@@ -125,15 +127,17 @@ function App() {
                         <Route index element={<ClientProfile />} />
                       </Route>
 
-                      {/* Staff Routes (Manager, Cashier, Cook - WITH Navbar, NO Bottom Nav) */}
+                      {/* Staff Routes (Manager, Cashier, Cook - WITH Sidebar, NO Bottom Nav) */}
                       <Route
                         path="/"
                         element={
                           <ProtectedRoute allowedRoles={['manager', 'cashier']}>
                             <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                              <Navbar />
-                              <main className="container mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
-                                <Orders />
+                              <Sidebar />
+                              <main className="container mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8 md:pt-4 pt-16" style={{ marginLeft: '0', paddingLeft: '1rem', paddingRight: '1rem' }}>
+                                <div style={{ marginLeft: '0' }} className="md:ml-64">
+                                  <Orders />
+                                </div>
                               </main>
                             </div>
                           </ProtectedRoute>
@@ -145,9 +149,11 @@ function App() {
                         element={
                           <ProtectedRoute allowedRoles={['manager']}>
                             <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                              <Navbar />
-                              <main className="container mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
-                                <Dashboard />
+                              <Sidebar />
+                              <main className="container mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8 md:pt-4 pt-16" style={{ marginLeft: '0', paddingLeft: '1rem', paddingRight: '1rem' }}>
+                                <div style={{ marginLeft: '0' }} className="md:ml-64">
+                                  <Dashboard />
+                                </div>
                               </main>
                             </div>
                           </ProtectedRoute>
@@ -159,9 +165,11 @@ function App() {
                         element={
                           <ProtectedRoute allowedRoles={['manager', 'cashier']}>
                             <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                              <Navbar />
-                              <main className="container mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
-                                <Menu />
+                              <Sidebar />
+                              <main className="container mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8 md:pt-4 pt-16" style={{ marginLeft: '0', paddingLeft: '1rem', paddingRight: '1rem' }}>
+                                <div style={{ marginLeft: '0' }} className="md:ml-64">
+                                  <Menu />
+                                </div>
                               </main>
                             </div>
                           </ProtectedRoute>
@@ -173,9 +181,11 @@ function App() {
                         element={
                           <ProtectedRoute allowedRoles={['manager', 'cashier']}>
                             <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                              <Navbar />
-                              <main className="container mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
-                                <OrdersHistory />
+                              <Sidebar />
+                              <main className="container mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:px-8 md:pt-4 pt-16" style={{ marginLeft: '0', paddingLeft: '1rem', paddingRight: '1rem' }}>
+                                <div style={{ marginLeft: '0' }} className="md:ml-64">
+                                  <OrdersHistory />
+                                </div>
                               </main>
                             </div>
                           </ProtectedRoute>
@@ -197,9 +207,11 @@ function App() {
                         element={
                           <ProtectedRoute allowedRoles={['manager']}>
                             <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                              <Navbar />
-                              <main className="container mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
-                                <Users />
+                              <Sidebar />
+                              <main className="container mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8 md:pt-4 pt-16" style={{ marginLeft: '0', paddingLeft: '1rem', paddingRight: '1rem' }}>
+                                <div style={{ marginLeft: '0' }} className="md:ml-64">
+                                  <Users />
+                                </div>
                               </main>
                             </div>
                           </ProtectedRoute>
@@ -211,9 +223,11 @@ function App() {
                         element={
                           <ProtectedRoute allowedRoles={['manager', 'cashier', 'cook']}>
                             <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                              <Navbar />
-                              <main className="container mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
-                                <Profile />
+                              <Sidebar />
+                              <main className="container mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8 md:pt-4 pt-16" style={{ marginLeft: '0', paddingLeft: '1rem', paddingRight: '1rem' }}>
+                                <div style={{ marginLeft: '0' }} className="md:ml-64">
+                                  <Profile />
+                                </div>
                               </main>
                             </div>
                           </ProtectedRoute>
@@ -226,7 +240,8 @@ function App() {
             </Routes>
           </Router>
           </div>
-        </CartProvider>
+          </CartProvider>
+        </SidebarProvider>
       </AuthProvider>
     </ThemeProvider>
   );
