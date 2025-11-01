@@ -71,7 +71,6 @@ export default function PrinterConnection() {
         setConnectionState('disconnected');
       }
     } catch (error) {
-      console.error('Auto-reconnect error:', error);
       setConnectionState('disconnected');
     }
   };
@@ -89,7 +88,6 @@ export default function PrinterConnection() {
       setSavedPrinterName(printerService.getSavedPrinterName());
       setConnectionState('connected');
     } catch (error) {
-      console.error('Connection error:', error);
       setErrorMessage(error.message);
       setConnectionState('error');
     } finally {
@@ -117,7 +115,6 @@ export default function PrinterConnection() {
         setConnectionState('connected');
       }
     } catch (error) {
-      console.error('Reconnect error:', error);
       setErrorMessage(error.message);
       setConnectionState('error');
     } finally {

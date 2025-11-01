@@ -25,7 +25,6 @@ export const userFunctions = {
       const result = await createUser(userData);
       return result.data;
     } catch (error) {
-      console.error('Error creating user:', error);
       throw new Error(error.message || 'Failed to create user');
     }
   },
@@ -41,7 +40,6 @@ export const userFunctions = {
       const result = await setUserRole({ userId, role });
       return result.data;
     } catch (error) {
-      console.error('Error setting user role:', error);
       throw new Error(error.message || 'Failed to update user role');
     }
   },
@@ -57,7 +55,6 @@ export const userFunctions = {
       const result = await updateUserStatus({ userId, status });
       return result.data;
     } catch (error) {
-      console.error('Error updating user status:', error);
       throw new Error(error.message || 'Failed to update user status');
     }
   },

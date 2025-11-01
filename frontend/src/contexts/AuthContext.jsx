@@ -34,7 +34,6 @@ export function AuthProvider({ children }) {
           setUser(null);
         }
       } catch (error) {
-        console.error('Error processing auth state:', error);
         setUser(null);
       } finally {
         setLoading(false);
@@ -70,7 +69,6 @@ export function AuthProvider({ children }) {
 
       return { user: userData };
     } catch (error) {
-      console.error('Login error:', error);
 
       // Extract error message
       let errorMessage = 'Login failed. Please try again.';
@@ -96,7 +94,6 @@ export function AuthProvider({ children }) {
       setUser(null);
       setFirebaseUser(null);
     } catch (error) {
-      console.error('Logout error:', error);
       throw error;
     }
   };

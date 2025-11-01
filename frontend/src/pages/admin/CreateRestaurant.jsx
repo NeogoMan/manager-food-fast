@@ -52,7 +52,6 @@ const CreateRestaurant = () => {
       alert(`Restaurant created successfully!\nRestaurant Code: ${result.restaurantCode}`);
       navigate('/admin/restaurants');
     } catch (err) {
-      console.error('Error creating restaurant:', err);
       setError(err.message || 'Failed to create restaurant');
     } finally {
       setLoading(false);

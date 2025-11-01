@@ -89,7 +89,6 @@ export default function MyOrdersM3() {
       setOrderToCancel(null);
       showToast('Commande annulée avec succès', 'success');
     } catch (error) {
-      console.error('Cancel order error:', error);
       showToast('Erreur lors de l\'annulation', 'error');
     }
   };

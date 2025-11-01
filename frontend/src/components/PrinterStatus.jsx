@@ -43,7 +43,6 @@ export default function PrinterStatus() {
         setTestResult(null);
       }, 3000);
     } catch (error) {
-      console.error('Test print error:', error);
       setTestResult({ success: false, message: error.message });
     } finally {
       setIsTesting(false);

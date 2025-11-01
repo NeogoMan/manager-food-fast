@@ -32,6 +32,7 @@ export default function Orders() {
   const [amountReceived, setAmountReceived] = useState('');
   const [calculatedChange, setCalculatedChange] = useState(0);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('cash');
 
   // Print confirmation modal state
   const [isPrintConfirmModalOpen, setIsPrintConfirmModalOpen] = useState(false);
@@ -73,25 +74,15 @@ export default function Orders() {
     // Get restaurantId from Firebase Auth token claims
     async function setupSubscriptions() {
       try {
-        console.log('🔍 === ORDERS PAGE: Setting up subscriptions ===');
         const auth = await import('../config/firebase').then(m => m.auth);
         const idTokenResult = await auth.currentUser.getIdTokenResult();
         const restaurantId = idTokenResult.claims.restaurantId;
 
-        console.log('📋 User info:', {
-          uid: auth.currentUser.uid,
-          role: user?.role,
-          userId: user?.id,
-          restaurantId: restaurantId
-        });
-
         if (!restaurantId) {
-          console.error('❌ No restaurantId found in auth token');
           setIsLoading(false);
           return;
         }
 
-        console.log('✅ RestaurantId from token:', restaurantId);
         setIsLoading(true);
 
         // Subscribe to orders with role-based filtering
@@ -100,18 +91,8 @@ export default function Orders() {
           ? { userId: user.id, restaurantId }
           : { restaurantId };
 
-        console.log('🔎 Subscription filter:', subscriptionFilter);
 
         const unsubscribeOrders = ordersService.subscribe((orders) => {
-          console.log('📦 Received orders:', orders.length);
-          console.log('📊 Orders detail:', orders.map(o => ({
-            id: o.id,
-            orderNumber: o.orderNumber,
-            restaurantId: o.restaurantId,
-            userId: o.userId,
-            status: o.status,
-            total: o.totalAmount
-          })));
           setOrdersList(orders);
           setIsLoading(false);
         }, subscriptionFilter);
@@ -128,7 +109,6 @@ export default function Orders() {
         // Store unsubscribe functions for cleanup
         return { unsubscribeOrders, unsubscribeApproval };
       } catch (error) {
-        console.error('Error setting up subscriptions:', error);
         setIsLoading(false);
         return null;
       }
@@ -160,7 +140,6 @@ export default function Orders() {
         const data = await menuService.getAvailable();
         setMenuItems(data);
       } catch (error) {
-        console.error(errors.loadMenuFailed + ':', error);
       }
     }
     loadMenuItems();
@@ -186,7 +165,6 @@ export default function Orders() {
         });
         setUsersMap(map);
       } catch (error) {
-        console.error('Failed to load users:', error);
       }
     }
     loadUsers();
@@ -328,6 +306,12 @@ export default function Orders() {
 
       const orderUserId = user?.role === 'client' ? user.id : null;
 
+      // Prepare user info for tracking who created the order
+      const userInfo = user ? {
+        userId: user.id,
+        userName: user.name || user.username || 'User'
+      } : null;
+
       // Create the order and capture the returned order data
       const createdOrder = await ordersService.create({
         userId: orderUserId, // Set userId for clients, null for walk-in customers
@@ -342,7 +326,7 @@ export default function Orders() {
         totalAmount: calculateTotal(),
         itemCount: orderItems.reduce((sum, item) => sum + item.quantity, 0),
         status: initialStatus, // Pass the initial status
-      }, restaurantId);
+      }, restaurantId, userInfo);
 
       setIsCreateModalOpen(false);
       // Real-time listener will automatically update the list
@@ -355,7 +339,6 @@ export default function Orders() {
         }, 500);
       }
     } catch (error) {
-      console.error('Order creation failed:', error);
       alert(errors.createOrderFailed + ': ' + error.message);
     }
   }
@@ -380,8 +363,14 @@ export default function Orders() {
 
   async function handleApprove(orderId) {
     try {
+      // Prepare user info for tracking who approved the order
+      const userInfo = user ? {
+        userId: user.id,
+        userName: user.name || user.username || 'User'
+      } : null;
+
       // 1. Approve the order first
-      await ordersService.approve(orderId);
+      await ordersService.approve(orderId, userInfo);
       // Real-time listener will automatically update both lists
 
       // 2. Try to print the order ticket (non-blocking)
@@ -412,7 +401,6 @@ export default function Orders() {
         }
       } catch (printError) {
         // Print failed but order is still approved
-        console.error('Print error:', printError);
         alert('✓ Commande approuvée\n⚠️ Erreur d\'impression: ' + printError.message + '\n\nVérifiez la connexion de l\'imprimante.');
       }
     } catch (error) {
@@ -424,7 +412,14 @@ export default function Orders() {
   async function handleReject(orderId) {
     try {
       const reason = prompt('Raison du refus (optionnel):');
-      await ordersService.reject(orderId, reason);
+
+      // Prepare user info for tracking who rejected the order
+      const userInfo = user ? {
+        userId: user.id,
+        userName: user.name || user.username || 'User'
+      } : null;
+
+      await ordersService.reject(orderId, reason, userInfo);
       // Real-time listener will automatically update both lists
     } catch (error) {
       alert('Erreur lors du refus: ' + error.message);
@@ -473,7 +468,6 @@ export default function Orders() {
       setIsPrintModalOpen(false);
       setOrderToPrint(null);
     } catch (printError) {
-      console.error('Print error:', printError);
       alert('⚠️ Erreur d\'impression: ' + printError.message + '\n\nVérifiez la connexion de l\'imprimante.');
     } finally {
       setIsPrinting(false);
@@ -487,6 +481,7 @@ export default function Orders() {
       setOrderForPayment(order);
       setAmountReceived('');
       setCalculatedChange(0);
+      setSelectedPaymentMethod('cash');
       setIsPaymentModalOpen(true);
     } catch (error) {
       alert('Erreur lors du chargement de la commande: ' + error.message);
@@ -562,7 +557,7 @@ export default function Orders() {
       await ordersService.recordPayment(orderForPayment.id, {
         amount: amount,
         change: change,
-        method: 'cash',
+        method: selectedPaymentMethod,
       });
 
       // Close payment modal
@@ -578,7 +573,6 @@ export default function Orders() {
       setIsPrintConfirmModalOpen(true);
       setOrderForPayment(null);
     } catch (error) {
-      console.error('Payment error:', error);
       alert('⚠️ Erreur lors de l\'enregistrement du paiement: ' + error.message);
     } finally {
       setIsProcessingPayment(false);
@@ -591,6 +585,7 @@ export default function Orders() {
     setOrderForPayment(null);
     setAmountReceived('');
     setCalculatedChange(0);
+    setSelectedPaymentMethod('cash');
   }
 
   // Confirm and execute print
@@ -626,7 +621,6 @@ export default function Orders() {
       setIsPrintConfirmModalOpen(false);
       setOrderToPrintConfirm(null);
     } catch (printError) {
-      console.error('Print error:', printError);
       alert('⚠️ Erreur d\'impression: ' + printError.message + '\n\nVérifiez la connexion de l\'imprimante.');
     } finally {
       setIsPrinting(false);
@@ -874,6 +868,12 @@ export default function Orders() {
                     ) : (
                       <span className="px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
                         ⏸ À payer
+                      </span>
+                    )}
+                    {/* Payment Method Badge */}
+                    {order.paymentMethod && order.paymentStatus === 'paid' && (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {order.paymentMethod === 'cash' ? '💵 Espèces' : '💳 Carte'}
                       </span>
                     )}
                   </div>
@@ -1207,6 +1207,39 @@ export default function Orders() {
                   <p className="text-3xl font-bold text-primary-600">
                     {formatMAD(orderForPayment.totalAmount)}
                   </p>
+                </div>
+              </div>
+
+              {/* Payment Method Selection */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>
+                  Méthode de paiement:
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPaymentMethod('cash')}
+                    className="px-4 py-3 rounded-lg font-semibold text-base transition-all"
+                    style={{
+                      backgroundColor: selectedPaymentMethod === 'cash' ? '#10b981' : '#f3f4f6',
+                      color: selectedPaymentMethod === 'cash' ? '#ffffff' : '#374151',
+                      border: selectedPaymentMethod === 'cash' ? '2px solid #059669' : '2px solid #d1d5db',
+                    }}
+                  >
+                    💵 Espèces
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPaymentMethod('card')}
+                    className="px-4 py-3 rounded-lg font-semibold text-base transition-all"
+                    style={{
+                      backgroundColor: selectedPaymentMethod === 'card' ? '#3b82f6' : '#f3f4f6',
+                      color: selectedPaymentMethod === 'card' ? '#ffffff' : '#374151',
+                      border: selectedPaymentMethod === 'card' ? '2px solid #2563eb' : '2px solid #d1d5db',
+                    }}
+                  >
+                    💳 Carte
+                  </button>
                 </div>
               </div>
 
@@ -1741,12 +1774,20 @@ export default function Orders() {
                       {formatMAD(orderToPrintConfirm.paymentAmount)}
                     </span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-sm mb-1">
                     <span style={{ color: '#065f46' }}>Monnaie rendue:</span>
                     <span className="font-bold" style={{ color: '#065f46' }}>
                       {formatMAD(orderToPrintConfirm.changeGiven)}
                     </span>
                   </div>
+                  {orderToPrintConfirm.paymentMethod && (
+                    <div className="flex justify-between text-sm">
+                      <span style={{ color: '#065f46' }}>Méthode:</span>
+                      <span className="font-bold" style={{ color: '#065f46' }}>
+                        {orderToPrintConfirm.paymentMethod === 'cash' ? '💵 Espèces' : '💳 Carte'}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 

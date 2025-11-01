@@ -171,7 +171,7 @@ export const ordersService = {
   },
 
   // Create order
-  async create(orderData, restaurantId) {
+  async create(orderData, restaurantId, userInfo = null) {
     // Generate order number
     const orderNumber = `ORD-${Date.now()}`;
 
@@ -189,6 +189,9 @@ export const ordersService = {
       changeGiven: null,
       paymentTime: null,
       paymentMethod: null,
+      // Store who created the order
+      createdBy: userInfo?.userId || null,
+      createdByName: userInfo?.userName || null,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     });
@@ -281,7 +284,6 @@ export const ordersService = {
         callback(orders);
       },
       (error) => {
-        console.error('Firestore subscription error:', error);
       }
     );
 
@@ -301,15 +303,45 @@ export const ordersService = {
   },
 
   // Approve order (change status to pending)
-  async approve(id) {
-    return this.updateStatus(id, 'pending');
+  async approve(id, userInfo = null) {
+    const additionalData = {};
+    if (userInfo) {
+      additionalData.approvedBy = userInfo.userId;
+      additionalData.approvedByName = userInfo.userName;
+      additionalData.approvedAt = Timestamp.now();
+    }
+    return this.updateStatus(id, 'pending', additionalData);
   },
 
   // Reject order (change status to rejected)
-  async reject(id, reason = null) {
+  async reject(id, reason = null, userInfo = null) {
     const updates = { status: 'rejected' };
     if (reason) {
       updates.rejectionReason = reason;
+    }
+    if (userInfo) {
+      updates.rejectedBy = userInfo.userId;
+      updates.rejectedByName = userInfo.userName;
+      updates.rejectedAt = Timestamp.now();
+    }
+    const docRef = doc(db, 'orders', id);
+    await updateDoc(docRef, {
+      ...updates,
+      updatedAt: Timestamp.now(),
+    });
+    return { id, ...updates };
+  },
+
+  // Cancel order (change status to cancelled)
+  async cancel(id, reason, userInfo = null) {
+    const updates = {
+      status: 'cancelled',
+      cancellationReason: reason,
+      cancelledAt: Timestamp.now(),
+    };
+    if (userInfo) {
+      updates.cancelledBy = userInfo.userId;
+      updates.cancelledByName = userInfo.userName;
     }
     const docRef = doc(db, 'orders', id);
     await updateDoc(docRef, {
@@ -565,7 +597,6 @@ export const dashboardService = {
         cuisiniers,
       };
     } catch (error) {
-      console.error('Error getting filter options:', error);
       return { caissiers: [], cuisiniers: [] };
     }
   },

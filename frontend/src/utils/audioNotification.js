@@ -54,7 +54,6 @@ export function generateNotificationBeep() {
     }, 150);
 
   } catch (error) {
-    console.warn('Could not generate audio notification:', error);
   }
 }
 
@@ -74,7 +73,6 @@ export function createAudioPlayer(soundUrl = '/sounds/kitchen-bell.mp3') {
 
     // Check if file exists by attempting to load
     audioElement.addEventListener('error', () => {
-      console.warn(`Could not load ${soundUrl}, using Web Audio API fallback`);
       useWebAudioFallback = true;
       audioElement = null;
     });
@@ -82,7 +80,6 @@ export function createAudioPlayer(soundUrl = '/sounds/kitchen-bell.mp3') {
     // Preload the audio
     audioElement.load();
   } catch (error) {
-    console.warn('Audio element not supported, using Web Audio API fallback');
     useWebAudioFallback = true;
   }
 
@@ -92,7 +89,6 @@ export function createAudioPlayer(soundUrl = '/sounds/kitchen-bell.mp3') {
         generateNotificationBeep();
       } else {
         audioElement.play().catch((error) => {
-          console.warn('Could not play audio file, using fallback:', error);
           generateNotificationBeep();
         });
       }

@@ -47,9 +47,7 @@ class PrinterService {
       localStorage.setItem(STORAGE_KEYS.LAST_CONNECTED, new Date().toISOString());
       localStorage.setItem(STORAGE_KEYS.AUTO_RECONNECT, 'true');
 
-      console.log('✓ Printer info saved for auto-reconnect:', printerInfo);
     } catch (error) {
-      console.warn('Failed to save printer info:', error);
     }
   }
 
@@ -67,7 +65,6 @@ class PrinterService {
 
       return JSON.parse(printerInfoStr);
     } catch (error) {
-      console.warn('Failed to load saved printer info:', error);
       return null;
     }
   }
@@ -79,9 +76,7 @@ class PrinterService {
     try {
       localStorage.removeItem(STORAGE_KEYS.LAST_PRINTER);
       localStorage.removeItem(STORAGE_KEYS.AUTO_RECONNECT);
-      console.log('✓ Saved printer info cleared');
     } catch (error) {
-      console.warn('Failed to clear printer info:', error);
     }
   }
 
@@ -158,7 +153,6 @@ class PrinterService {
 
     try {
       // Request USB device with filter
-      console.log('Requesting USB device...');
 
       // Build request options - filters property MUST always be present
       const requestOptions = {
@@ -191,7 +185,6 @@ class PrinterService {
         this.onConnectionChange(true);
       }
 
-      console.log('✓ Printer connected:', this.device.productName);
       return {
         success: true,
         message: 'Imprimante connectée avec succès',
@@ -203,7 +196,6 @@ class PrinterService {
     } catch (error) {
       this.isConnecting = false;
       this.isConnected = false;
-      console.error('Connection error:', error);
 
       let errorMessage = 'Erreur de connexion à l\'imprimante';
       if (error.name === 'NotFoundError') {
@@ -230,22 +222,18 @@ class PrinterService {
    */
   async autoReconnect() {
     if (!this.isWebUSBSupported()) {
-      console.log('Web USB not supported, skipping auto-reconnect');
       return { success: false, reason: 'not_supported' };
     }
 
     if (!printerConfig.usb.autoReconnect) {
-      console.log('Auto-reconnect disabled in config');
       return { success: false, reason: 'disabled' };
     }
 
     const savedPrinter = this.getSavedPrinterInfo();
     if (!savedPrinter) {
-      console.log('No saved printer found for auto-reconnect');
       return { success: false, reason: 'no_saved_printer' };
     }
 
-    console.log('Attempting auto-reconnect to:', savedPrinter.productName);
 
     if (this.onReconnecting) {
       this.onReconnecting(true);
@@ -254,7 +242,6 @@ class PrinterService {
     try {
       // Get list of authorized devices
       const devices = await navigator.usb.getDevices();
-      console.log(`Found ${devices.length} authorized USB device(s)`);
 
       // Find matching device
       const matchingDevice = devices.find(
@@ -264,14 +251,12 @@ class PrinterService {
       );
 
       if (!matchingDevice) {
-        console.log('Previously connected printer not found in authorized devices');
         if (this.onReconnecting) {
           this.onReconnecting(false);
         }
         return { success: false, reason: 'device_not_found' };
       }
 
-      console.log('Found matching device, opening connection...');
       this.device = matchingDevice;
 
       // Open and configure device
@@ -290,7 +275,6 @@ class PrinterService {
         this.onReconnecting(false);
       }
 
-      console.log('✓ Auto-reconnect successful');
       return {
         success: true,
         message: 'Reconnexion automatique réussie',
@@ -299,7 +283,6 @@ class PrinterService {
         },
       };
     } catch (error) {
-      console.error('Auto-reconnect failed:', error);
 
       if (this.onReconnecting) {
         this.onReconnecting(false);
@@ -344,10 +327,8 @@ class PrinterService {
         this.onConnectionChange(false);
       }
 
-      console.log('✓ Printer disconnected');
       return { success: true, message: 'Imprimante déconnectée' };
     } catch (error) {
-      console.error('Disconnect error:', error);
       throw new Error('Erreur lors de la déconnexion');
     }
   }
@@ -401,7 +382,6 @@ class PrinterService {
           throw new Error('Device closed');
         }
       } catch (error) {
-        console.warn('Connection lost:', error);
         this.handleConnectionLost();
       }
     }, printerConfig.usb.connectionCheckInterval);
@@ -448,10 +428,8 @@ class PrinterService {
 
     try {
       await this.device.transferOut(printerConfig.usb.endpointNumber, data);
-      console.log('✓ Data sent to printer:', data.length, 'bytes');
       return { success: true };
     } catch (error) {
-      console.error('Send error:', error);
 
       let errorMessage = 'Erreur lors de l\'impression';
       if (error.name === 'NetworkError') {
@@ -472,12 +450,8 @@ class PrinterService {
    */
   async printOrderTicket(order, additionalData = {}) {
     try {
-      console.log('Printing order ticket:', order.orderNumber);
 
       const ticketText = formatOrderTicket(order, additionalData);
-      console.log('=== TICKET ===');
-      console.log(ticketText);
-      console.log('==============');
 
       const printData = this.buildPrintData(ticketText);
 
@@ -488,7 +462,6 @@ class PrinterService {
 
       return { success: true, message: 'Ticket imprimé avec succès' };
     } catch (error) {
-      console.error('Print error:', error);
       throw error;
     }
   }
@@ -498,12 +471,8 @@ class PrinterService {
    */
   async printTestPage() {
     try {
-      console.log('Printing test page...');
 
       const ticketText = formatTestTicket();
-      console.log('=== TEST TICKET ===');
-      console.log(ticketText);
-      console.log('===================');
 
       const printData = this.buildPrintData(ticketText);
 
@@ -514,7 +483,6 @@ class PrinterService {
 
       return { success: true, message: 'Test imprimé avec succès' };
     } catch (error) {
-      console.error('Test print error:', error);
       throw error;
     }
   }

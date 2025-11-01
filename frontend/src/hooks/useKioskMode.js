@@ -41,10 +41,8 @@ export function useKioskMode(options = {}) {
         await elem.msRequestFullscreen();
       }
 
-      console.log('✓ Entered fullscreen mode');
       return true;
     } catch (error) {
-      console.error('Failed to enter fullscreen:', error);
       return false;
     }
   };
@@ -64,10 +62,8 @@ export function useKioskMode(options = {}) {
         await document.msExitFullscreen();
       }
 
-      console.log('✓ Exited fullscreen mode');
       return true;
     } catch (error) {
-      console.error('Failed to exit fullscreen:', error);
       return false;
     }
   };
@@ -137,35 +133,30 @@ export function useKioskMode(options = {}) {
       // Block Ctrl+W / Cmd+W (close tab)
       if ((e.ctrlKey || e.metaKey) && e.key === 'w') {
         e.preventDefault();
-        console.log('⚠️ Close tab blocked');
         return;
       }
 
       // Block Ctrl+Q / Cmd+Q (quit browser)
       if ((e.ctrlKey || e.metaKey) && e.key === 'q') {
         e.preventDefault();
-        console.log('⚠️ Quit browser blocked');
         return;
       }
 
       // Block Ctrl+T / Cmd+T (new tab)
       if ((e.ctrlKey || e.metaKey) && e.key === 't') {
         e.preventDefault();
-        console.log('⚠️ New tab blocked');
         return;
       }
 
       // Block Ctrl+N / Cmd+N (new window)
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
         e.preventDefault();
-        console.log('⚠️ New window blocked');
         return;
       }
 
       // Block Alt+F4 (close window)
       if (e.altKey && e.key === 'F4') {
         e.preventDefault();
-        console.log('⚠️ Close window blocked');
         return;
       }
 
@@ -173,7 +164,6 @@ export function useKioskMode(options = {}) {
       // Uncomment if you want to prevent refresh
       // if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && e.key === 'r')) {
       //   e.preventDefault();
-      //   console.log('⚠️ Refresh blocked');
       //   return;
       // }
     };
@@ -193,7 +183,6 @@ export function useKioskMode(options = {}) {
      */
     const handleContextMenu = (e) => {
       e.preventDefault();
-      console.log('⚠️ Right-click blocked');
       return false;
     };
 
@@ -216,7 +205,6 @@ export function useKioskMode(options = {}) {
       if (window.history.state === null) {
         e.preventDefault();
         window.history.pushState(null, '', window.location.href);
-        console.log('⚠️ External navigation blocked');
       }
     };
 

@@ -19,6 +19,7 @@ export default function OrdersHistory() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [paymentFilter, setPaymentFilter] = useState('all');
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState('all');
   const [dateRange, setDateRange] = useState('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
@@ -49,7 +50,6 @@ export default function OrdersHistory() {
         const restaurantId = idTokenResult.claims.restaurantId;
 
         if (!restaurantId) {
-          console.error('❌ No restaurantId found in auth token');
           setIsLoading(false);
           return;
         }
@@ -68,7 +68,6 @@ export default function OrdersHistory() {
 
         return unsubscribe;
       } catch (error) {
-        console.error('Error setting up subscription:', error);
         setIsLoading(false);
         return null;
       }
@@ -101,7 +100,6 @@ export default function OrdersHistory() {
         const restaurantId = idTokenResult.claims.restaurantId;
 
         if (!restaurantId) {
-          console.error('❌ No restaurantId found in auth token for users');
           return;
         }
 
@@ -112,7 +110,6 @@ export default function OrdersHistory() {
         });
         setUsersMap(map);
       } catch (error) {
-        console.error('Failed to load users:', error);
       }
     }
     loadUsers();
@@ -130,6 +127,11 @@ export default function OrdersHistory() {
     // Payment filter
     if (paymentFilter !== 'all') {
       filtered = filtered.filter((order) => order.paymentStatus === paymentFilter);
+    }
+
+    // Payment method filter
+    if (paymentMethodFilter !== 'all') {
+      filtered = filtered.filter((order) => order.paymentMethod === paymentMethodFilter);
     }
 
     // Search filter (order number or customer name)
@@ -203,7 +205,7 @@ export default function OrdersHistory() {
 
     setFilteredOrders(filtered);
     setCurrentPage(1); // Reset to first page when filters change
-  }, [ordersList, searchQuery, statusFilter, paymentFilter, dateRange, customStartDate, customEndDate]);
+  }, [ordersList, searchQuery, statusFilter, paymentFilter, paymentMethodFilter, dateRange, customStartDate, customEndDate]);
 
   // Get client name (registered user or walk-in customer)
   function getClientName(order) {
@@ -238,31 +240,16 @@ export default function OrdersHistory() {
     if (!date) return '';
 
     const orderDate = date?.toDate ? date.toDate() : new Date(date);
-    const now = new Date();
-    const diffMs = now - orderDate;
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-    // Show relative time for recent orders
-    if (diffDays === 0) {
-      return orderDate.toLocaleTimeString('fr-FR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } else if (diffDays === 1) {
-      return 'Hier ' + orderDate.toLocaleTimeString('fr-FR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } else {
-      // Show absolute date for older orders
-      return orderDate.toLocaleDateString('fr-FR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    }
+    // Always show full date and time for history
+    return orderDate.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
   }
 
   // Pagination
@@ -343,6 +330,20 @@ export default function OrdersHistory() {
               </select>
             </div>
 
+            {/* Payment Method Filter */}
+            <div>
+              <label className="label">Méthode de paiement</label>
+              <select
+                className="input"
+                value={paymentMethodFilter}
+                onChange={(e) => setPaymentMethodFilter(e.target.value)}
+              >
+                <option value="all">Toutes</option>
+                <option value="cash">💵 Espèces</option>
+                <option value="card">💳 Carte</option>
+              </select>
+            </div>
+
             {/* Date Range Filter */}
             <div>
               <label className="label">Période</label>
@@ -402,7 +403,7 @@ export default function OrdersHistory() {
           )}
 
           {/* Clear Filters Button */}
-          {(searchQuery || statusFilter !== 'all' || paymentFilter !== 'all' || dateRange !== 'all') && (
+          {(searchQuery || statusFilter !== 'all' || paymentFilter !== 'all' || paymentMethodFilter !== 'all' || dateRange !== 'all') && (
             <div className="flex justify-end">
               <Button
                 variant="secondary"
@@ -411,6 +412,7 @@ export default function OrdersHistory() {
                   setSearchQuery('');
                   setStatusFilter('all');
                   setPaymentFilter('all');
+                  setPaymentMethodFilter('all');
                   setDateRange('all');
                   setCustomStartDate('');
                   setCustomEndDate('');
@@ -470,6 +472,12 @@ export default function OrdersHistory() {
                             ❌ Non payé
                           </span>
                         )}
+                        {/* Payment Method Badge */}
+                        {order.paymentMethod && order.paymentStatus === 'paid' && (
+                          <span className="inline-block px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {order.paymentMethod === 'cash' ? '💵 Espèces' : '💳 Carte'}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -491,6 +499,12 @@ export default function OrdersHistory() {
                       <p className="font-medium" style={{ color: 'var(--text-primary)' }}>
                         {formatOrderDate(order.createdAt)}
                       </p>
+                      {/* Staff Info */}
+                      {(order.createdByName || order.approvedByName) && (
+                        <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                          {order.approvedByName ? `Approuvé par: ${order.approvedByName}` : `Créé par: ${order.createdByName}`}
+                        </p>
+                      )}
                     </div>
 
                     {/* Total & Items */}
@@ -633,7 +647,7 @@ export default function OrdersHistory() {
                 <div className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
                   {selectedOrder.paymentMethod && (
                     <p>
-                      <strong>Méthode:</strong> {selectedOrder.paymentMethod === 'cash' ? 'Espèces' : selectedOrder.paymentMethod}
+                      <strong>Méthode:</strong> {selectedOrder.paymentMethod === 'cash' ? '💵 Espèces' : '💳 Carte'}
                     </p>
                   )}
                   {selectedOrder.paymentAmount && (
@@ -668,6 +682,92 @@ export default function OrdersHistory() {
               <strong>Date:</strong> {formatOrderDate(selectedOrder.createdAt)}
             </p>
 
+            {/* Staff Information */}
+            {(selectedOrder.createdByName || selectedOrder.approvedByName) && (
+              <div className="mb-3 p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                <p className="font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                  👤 Informations du personnel
+                </p>
+                <div className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  {selectedOrder.createdByName && (
+                    <p>
+                      <strong>Créé par:</strong> {selectedOrder.createdByName}
+                    </p>
+                  )}
+                  {selectedOrder.approvedByName && (
+                    <p>
+                      <strong>Approuvé par:</strong> {selectedOrder.approvedByName}
+                      {selectedOrder.approvedAt && (
+                        <span className="ml-2 text-xs">
+                          ({selectedOrder.approvedAt?.toDate
+                            ? selectedOrder.approvedAt.toDate().toLocaleString('fr-FR')
+                            : new Date(selectedOrder.approvedAt).toLocaleString('fr-FR')})
+                        </span>
+                      )}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Cancellation Details */}
+            {selectedOrder.status === 'cancelled' && (
+              <div
+                className="mb-3 p-3 rounded-lg"
+                style={{
+                  backgroundColor: 'var(--bg-tertiary)',
+                  borderLeft: '4px solid #ef4444',
+                }}
+              >
+                <p className="font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                  ❌ Détails de l'annulation
+                </p>
+                <div className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  {selectedOrder.cancelledByName && (
+                    <p>
+                      <strong>Annulé par:</strong> {selectedOrder.cancelledByName}
+                    </p>
+                  )}
+                  {selectedOrder.cancelledAt && (
+                    <p>
+                      <strong>Date d'annulation:</strong>{' '}
+                      {selectedOrder.cancelledAt?.toDate
+                        ? selectedOrder.cancelledAt.toDate().toLocaleString('fr-FR')
+                        : new Date(selectedOrder.cancelledAt).toLocaleString('fr-FR')}
+                    </p>
+                  )}
+                  {selectedOrder.cancellationReason && (
+                    <p>
+                      <strong>Raison:</strong> {selectedOrder.cancellationReason}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Rejection Details */}
+            {selectedOrder.status === 'rejected' && selectedOrder.rejectionReason && (
+              <div
+                className="mb-3 p-3 rounded-lg"
+                style={{
+                  backgroundColor: 'var(--bg-tertiary)',
+                  borderLeft: '4px solid #f59e0b',
+                }}
+              >
+                <p className="font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                  🚫 Raison du refus
+                </p>
+                <div className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  {selectedOrder.rejectedByName && (
+                    <p>
+                      <strong>Rejeté par:</strong> {selectedOrder.rejectedByName}
+                    </p>
+                  )}
+                  <p>{selectedOrder.rejectionReason}</p>
+                </div>
+              </div>
+            )}
+
             {selectedOrder.notes && (
               <p className="mb-4" style={{ color: 'var(--text-primary)' }}>
                 <strong>{form.notes}:</strong> {selectedOrder.notes}
@@ -689,11 +789,11 @@ export default function OrdersHistory() {
                       {item.name}
                     </p>
                     <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
-                      {form.quantity}: {item.quantity} × {formatMAD(item.unitPrice)}
+                      {form.quantity}: {item.quantity} × {formatMAD(item.price)}
                     </p>
                   </div>
                   <span className="font-bold" style={{ color: 'var(--text-primary)' }}>
-                    {formatMAD(item.subtotal)}
+                    {formatMAD(item.price * item.quantity)}
                   </span>
                 </div>
               ))}

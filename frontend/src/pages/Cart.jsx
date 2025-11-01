@@ -87,7 +87,6 @@ export default function Cart() {
         navigate('/my-orders');
       }, 1500);
     } catch (error) {
-      console.error('Order creation failed:', error);
       showToast(error.message || 'Erreur lors de la création de la commande', 'error');
     } finally {
       setLoading(false);

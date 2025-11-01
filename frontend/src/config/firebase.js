@@ -24,8 +24,6 @@ const firebaseConfig = {
 const requiredConfigKeys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
 const missingKeys = requiredConfigKeys.filter(key => !firebaseConfig[key]);
 if (missingKeys.length > 0) {
-  console.error('❌ Missing Firebase configuration:', missingKeys);
-  console.error('Please create a .env file with your Firebase credentials. See .env.example for reference.');
 }
 
 // Initialize Firebase
@@ -43,27 +41,21 @@ export const storage = getStorage(app);
 // enableIndexedDbPersistence(db).catch((err) => {
 //   if (err.code === 'failed-precondition') {
 //     // Multiple tabs open, persistence can only be enabled in one tab at a time
-//     console.warn('⚠️ Offline persistence: Multiple tabs open, enabled in first tab only');
 //   } else if (err.code === 'unimplemented') {
 //     // Browser doesn't support offline persistence
-//     console.warn('⚠️ Offline persistence: Browser doesn\'t support offline mode');
 //   } else {
-//     console.error('❌ Error enabling offline persistence:', err);
 //   }
 // });
 
-console.log('⚠️  IndexedDB persistence DISABLED (temporary fix for corrupted state)');
 
 // Connect to emulators in development
 if (import.meta.env.MODE === 'development' && import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true') {
-  console.log('🔧 Connecting to Firebase Emulators...');
 
   connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
   connectFirestoreEmulator(db, 'localhost', 8080);
   connectFunctionsEmulator(functions, 'localhost', 5001);
   connectStorageEmulator(storage, 'localhost', 9199);
 
-  console.log('✅ Connected to Firebase Emulators');
 }
 
 export default app;

@@ -21,7 +21,6 @@ const Restaurants = () => {
       const data = await listRestaurants();
       setRestaurants(data);
     } catch (err) {
-      console.error('Error loading restaurants:', err);
       setError(err.message || 'Failed to load restaurants');
     } finally {
       setLoading(false);
@@ -33,7 +32,6 @@ const Restaurants = () => {
       await suspendRestaurant(restaurantId, newStatus);
       await loadRestaurants(); // Reload list
     } catch (err) {
-      console.error('Error updating status:', err);
       alert('Failed to update restaurant status');
     }
   };

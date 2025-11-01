@@ -26,7 +26,6 @@ export function CartProvider({ children }) {
         }));
         setCartItems(normalizedCart);
       } catch (error) {
-        console.error('Error loading cart from localStorage:', error);
       }
     }
   }, []);

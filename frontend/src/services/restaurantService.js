@@ -24,7 +24,6 @@ export const createRestaurant = async (restaurantData) => {
     const result = await createRestaurantFn(restaurantData);
     return result.data;
   } catch (error) {
-    console.error('Error creating restaurant:', error);
     throw error;
   }
 };
@@ -41,7 +40,6 @@ export const updateRestaurant = async (restaurantId, updates) => {
     const result = await updateRestaurantFn({ restaurantId, updates });
     return result.data;
   } catch (error) {
-    console.error('Error updating restaurant:', error);
     throw error;
   }
 };
@@ -56,7 +54,6 @@ export const listRestaurants = async () => {
     const result = await listRestaurantsFn();
     return result.data.restaurants;
   } catch (error) {
-    console.error('Error listing restaurants:', error);
     throw error;
   }
 };
@@ -73,7 +70,6 @@ export const suspendRestaurant = async (restaurantId, status) => {
     const result = await suspendRestaurantFn({ restaurantId, status });
     return result.data;
   } catch (error) {
-    console.error('Error suspending restaurant:', error);
     throw error;
   }
 };

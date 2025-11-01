@@ -42,7 +42,6 @@ export default function Dashboard() {
         const restaurantId = idTokenResult.claims.restaurantId;
 
         if (!restaurantId) {
-          console.error('No restaurantId found in auth token');
           setError('Restaurant ID not found in authentication token');
           setLoading(false);
           return;
@@ -51,7 +50,6 @@ export default function Dashboard() {
         fetchFilterOptions(restaurantId);
         fetchData(filters, restaurantId);
       } catch (err) {
-        console.error('Error initializing dashboard:', err);
         setError(dashboard.noData.error);
         setLoading(false);
       }
@@ -65,7 +63,6 @@ export default function Dashboard() {
       const options = await dashboardService.getFilterOptions(restaurantId);
       setFilterOptions(options);
     } catch (err) {
-      console.error('Error fetching filter options:', err);
     }
   };
 
@@ -102,7 +99,6 @@ export default function Dashboard() {
       setData(statistics);
     } catch (err) {
       setError(dashboard.noData.error);
-      console.error('Error fetching dashboard data:', err);
     } finally {
       setLoading(false);
     }

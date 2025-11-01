@@ -44,7 +44,6 @@ export default function Kitchen() {
   // Initialize audio with fallback support
   useEffect(() => {
     audioRef.current = createAudioPlayer('/sounds/kitchen-bell.mp3');
-    console.log('🔊 Audio notification system initialized');
   }, []);
 
   // Play notification sound
@@ -53,7 +52,6 @@ export default function Kitchen() {
       try {
         audioRef.current.play();
       } catch (error) {
-        console.warn('⚠️ Could not play notification sound:', error);
       }
     }
   }, [isSoundMuted]);
@@ -119,7 +117,6 @@ export default function Kitchen() {
       await logout();
       navigate('/login');
     } catch (error) {
-      console.error('Logout error:', error);
     } finally {
       setShowLogoutDialog(false);
     }
@@ -175,7 +172,6 @@ export default function Kitchen() {
         const restaurantId = idTokenResult.claims.restaurantId;
 
         if (!restaurantId) {
-          console.error('No restaurantId found in auth token');
           setIsLoading(false);
           return;
         }
@@ -184,12 +180,10 @@ export default function Kitchen() {
 
         // Subscribe to kitchen orders (pending + preparing + ready) with restaurantId filter
         const unsubscribe = ordersService.subscribe((orders) => {
-      console.log('🍳 Kitchen orders received:', orders.length, 'orders');
 
       // Detect new orders and show notification (skip on first load)
       if (previousOrdersCount.current > 0 && orders.length > previousOrdersCount.current) {
         const newOrder = orders[0]; // Newest order is first (ordered by createdAt desc)
-        console.log('🔔 New order detected:', newOrder.orderNumber);
         playNotificationSound();
         showToast(
           {
@@ -215,7 +209,6 @@ export default function Kitchen() {
 
         return unsubscribe;
       } catch (error) {
-        console.error('Error setting up kitchen subscription:', error);
         setIsLoading(false);
         return null;
       }
