@@ -41,18 +41,50 @@ export default function OrdersHistory() {
       return;
     }
 
-    setIsLoading(true);
+    // Get restaurantId from Firebase Auth token claims
+    async function setupSubscription() {
+      try {
+        const auth = await import('../config/firebase').then(m => m.auth);
+        const idTokenResult = await auth.currentUser.getIdTokenResult();
+        const restaurantId = idTokenResult.claims.restaurantId;
 
-    const unsubscribe = ordersService.subscribe((orders) => {
-      // Filter for completed and cancelled orders only
-      const historyOrders = orders.filter((order) =>
-        ['completed', 'cancelled'].includes(order.status)
-      );
-      setOrdersList(historyOrders);
-      setIsLoading(false);
+        if (!restaurantId) {
+          console.error('❌ No restaurantId found in auth token');
+          setIsLoading(false);
+          return;
+        }
+
+        setIsLoading(true);
+
+        // Subscribe to orders with restaurantId filter
+        const unsubscribe = ordersService.subscribe((orders) => {
+          // Filter for completed and cancelled orders only
+          const historyOrders = orders.filter((order) =>
+            ['completed', 'cancelled'].includes(order.status)
+          );
+          setOrdersList(historyOrders);
+          setIsLoading(false);
+        }, { restaurantId });
+
+        return unsubscribe;
+      } catch (error) {
+        console.error('Error setting up subscription:', error);
+        setIsLoading(false);
+        return null;
+      }
+    }
+
+    let unsubscribeFunction = null;
+
+    setupSubscription().then((unsub) => {
+      unsubscribeFunction = unsub;
     });
 
-    return () => unsubscribe();
+    return () => {
+      if (unsubscribeFunction) {
+        unsubscribeFunction();
+      }
+    };
   }, [authLoading, user]);
 
   // Load users for displaying client names
@@ -64,7 +96,16 @@ export default function OrdersHistory() {
 
     async function loadUsers() {
       try {
-        const users = await usersService.getAll();
+        const auth = await import('../config/firebase').then(m => m.auth);
+        const idTokenResult = await auth.currentUser.getIdTokenResult();
+        const restaurantId = idTokenResult.claims.restaurantId;
+
+        if (!restaurantId) {
+          console.error('❌ No restaurantId found in auth token for users');
+          return;
+        }
+
+        const users = await usersService.getAll(restaurantId);
         const map = {};
         users.forEach((u) => {
           map[u.id] = u;

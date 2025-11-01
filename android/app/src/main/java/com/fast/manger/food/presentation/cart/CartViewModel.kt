@@ -3,6 +3,7 @@ package com.fast.manger.food.presentation.cart
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fast.manger.food.domain.model.Result
+import com.fast.manger.food.domain.usecase.auth.GetCurrentUserUseCase
 import com.fast.manger.food.domain.usecase.cart.ClearCartUseCase
 import com.fast.manger.food.domain.usecase.cart.GetCartUseCase
 import com.fast.manger.food.domain.usecase.cart.UpdateCartItemUseCase
@@ -24,7 +25,8 @@ class CartViewModel @Inject constructor(
     private val getCartUseCase: GetCartUseCase,
     private val updateCartItemUseCase: UpdateCartItemUseCase,
     private val clearCartUseCase: ClearCartUseCase,
-    private val placeOrderUseCase: PlaceOrderUseCase
+    private val placeOrderUseCase: PlaceOrderUseCase,
+    private val getCurrentUserUseCase: GetCurrentUserUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CartUiState())
@@ -139,6 +141,7 @@ class CartViewModel @Inject constructor(
 
     /**
      * Place order
+     * Checks authentication first - if user is not authenticated, triggers signup flow
      */
     fun placeOrder() {
         if (_uiState.value.cartItems.isEmpty()) {
@@ -149,6 +152,20 @@ class CartViewModel @Inject constructor(
         _uiState.update { it.copy(isPlacingOrder = true, error = null) }
 
         viewModelScope.launch {
+            // Check if user is authenticated
+            val currentUser = getCurrentUserUseCase()
+            if (currentUser !is Result.Success || currentUser.data == null) {
+                // User not authenticated, trigger signup flow
+                _uiState.update {
+                    it.copy(
+                        isPlacingOrder = false,
+                        requiresAuthentication = true
+                    )
+                }
+                return@launch
+            }
+
+            // User is authenticated, proceed with order placement
             val notes = _uiState.value.orderNotes.ifBlank { null }
 
             when (val result = placeOrderUseCase(notes)) {
@@ -187,6 +204,13 @@ class CartViewModel @Inject constructor(
                 orderId = null
             )
         }
+    }
+
+    /**
+     * Reset authentication required state (after navigation to signup)
+     */
+    fun resetAuthenticationState() {
+        _uiState.update { it.copy(requiresAuthentication = false) }
     }
 
     /**

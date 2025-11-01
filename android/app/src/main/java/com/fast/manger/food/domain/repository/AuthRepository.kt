@@ -15,6 +15,29 @@ interface AuthRepository {
     suspend fun login(username: String, password: String): Result<User>
 
     /**
+     * Login with username or phone number and password
+     * @param identifier Username or phone number
+     * @param password User password
+     * @return Result with User or error
+     */
+    suspend fun loginWithIdentifier(identifier: String, password: String): Result<User>
+
+    /**
+     * Sign up new client user
+     * @param restaurantId Restaurant ID to associate with
+     * @param name User's full name
+     * @param phone User's phone number
+     * @param password User's password
+     * @return Result with User or error
+     */
+    suspend fun signUpClient(
+        restaurantId: String,
+        name: String,
+        phone: String,
+        password: String
+    ): Result<User>
+
+    /**
      * Logout current user
      */
     suspend fun logout(): Result<Unit>
@@ -43,4 +66,18 @@ interface AuthRepository {
      * Refresh authentication token
      */
     suspend fun refreshToken(): Result<String>
+
+    /**
+     * Add restaurant to user's account
+     * @param restaurantCode Restaurant short code
+     * @return Result with success message and restaurant info
+     */
+    suspend fun addRestaurantToUser(restaurantCode: String): Result<Map<String, Any>>
+
+    /**
+     * Set active restaurant for user
+     * @param restaurantId Restaurant ID to set as active
+     * @return Result with success message and restaurant info
+     */
+    suspend fun setActiveRestaurant(restaurantId: String): Result<Map<String, Any>>
 }

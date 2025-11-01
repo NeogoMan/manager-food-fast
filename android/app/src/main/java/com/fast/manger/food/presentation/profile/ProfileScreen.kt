@@ -10,18 +10,24 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -74,6 +80,14 @@ fun ProfileScreen(
         }
     }
 
+    // Show success message
+    LaunchedEffect(uiState.addRestaurantSuccessMessage) {
+        uiState.addRestaurantSuccessMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearSuccessMessage()
+        }
+    }
+
     Scaffold(
         topBar = {
             FastFoodTopAppBar(title = "Profil")
@@ -88,7 +102,9 @@ fun ProfileScreen(
         } else {
             ProfileContent(
                 user = uiState.user,
+                restaurantName = uiState.restaurantName,
                 onLogoutClick = { showLogoutDialog = true },
+                onAddRestaurantClick = { viewModel.showAddRestaurantDialog() },
                 modifier = Modifier.padding(paddingValues)
             )
         }
@@ -123,17 +139,31 @@ fun ProfileScreen(
             }
         )
     }
+
+    // Add restaurant dialog
+    if (uiState.showAddRestaurantDialog) {
+        AddRestaurantDialog(
+            restaurantCode = uiState.addRestaurantCode,
+            isAdding = uiState.isAddingRestaurant,
+            onCodeChange = { viewModel.updateRestaurantCode(it) },
+            onConfirm = { viewModel.addRestaurant() },
+            onDismiss = { viewModel.hideAddRestaurantDialog() }
+        )
+    }
 }
 
 @Composable
 private fun ProfileContent(
     user: User?,
+    restaurantName: String?,
     onLogoutClick: () -> Unit,
+    onAddRestaurantClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -198,7 +228,45 @@ private fun ProfileContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Restaurant info card
+            if (!restaurantName.isNullOrBlank()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Restaurant name
+                        ProfileInfoRow(
+                            label = "Restaurant",
+                            value = restaurantName,
+                            icon = Icons.Default.Restaurant
+                        )
+                    }
+                }
+
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Add restaurant button
+            OutlinedButton(
+                onClick = onAddRestaurantClick,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add Restaurant"
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = "Ajouter un restaurant")
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Logout button
             OutlinedButton(
@@ -264,4 +332,60 @@ private fun ProfileInfoRow(
             )
         }
     }
+}
+
+@Composable
+private fun AddRestaurantDialog(
+    restaurantCode: String,
+    isAdding: Boolean,
+    onCodeChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { if (!isAdding) onDismiss() },
+        icon = {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = "Ajouter un restaurant"
+            )
+        },
+        title = {
+            Text("Ajouter un Restaurant")
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Entrez le code du restaurant que vous souhaitez ajouter",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                OutlinedTextField(
+                    value = restaurantCode,
+                    onValueChange = onCodeChange,
+                    label = { Text("Code Restaurant") },
+                    placeholder = { Text("Ex: MN0UTJ") },
+                    singleLine = true,
+                    enabled = !isAdding,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = !isAdding && restaurantCode.isNotBlank()
+            ) {
+                Text(if (isAdding) "Ajout..." else "Ajouter")
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isAdding
+            ) {
+                Text("Annuler")
+            }
+        }
+    )
 }

@@ -5,6 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.fast.manger.food.domain.model.Result
 import com.fast.manger.food.domain.usecase.auth.GetCurrentUserUseCase
 import com.fast.manger.food.domain.usecase.auth.LogoutUseCase
+import com.fast.manger.food.domain.usecase.cart.ClearCartUseCase
+import com.fast.manger.food.domain.usecase.restaurant.AddRestaurantByCodeUseCase
+import com.fast.manger.food.domain.usecase.restaurant.ClearRestaurantUseCase
+import com.fast.manger.food.domain.usecase.restaurant.GetSavedRestaurantUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,7 +24,11 @@ import javax.inject.Inject
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val getCurrentUserUseCase: GetCurrentUserUseCase,
-    private val logoutUseCase: LogoutUseCase
+    private val logoutUseCase: LogoutUseCase,
+    private val getSavedRestaurantUseCase: GetSavedRestaurantUseCase,
+    private val clearRestaurantUseCase: ClearRestaurantUseCase,
+    private val clearCartUseCase: ClearCartUseCase,
+    private val addRestaurantByCodeUseCase: AddRestaurantByCodeUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProfileUiState())
@@ -29,6 +37,7 @@ class ProfileViewModel @Inject constructor(
     init {
         loadUser()
         observeUser()
+        loadRestaurantName()
     }
 
     /**
@@ -120,6 +129,88 @@ class ProfileViewModel @Inject constructor(
      */
     fun resetLogoutState() {
         _uiState.update { it.copy(logoutSuccessful = false) }
+    }
+
+    /**
+     * Load restaurant name
+     */
+    private fun loadRestaurantName() {
+        viewModelScope.launch {
+            val restaurantName = getSavedRestaurantUseCase.getName()
+            _uiState.update { it.copy(restaurantName = restaurantName) }
+        }
+    }
+
+    /**
+     * Show add restaurant dialog
+     */
+    fun showAddRestaurantDialog() {
+        _uiState.update {
+            it.copy(showAddRestaurantDialog = true, addRestaurantCode = "")
+        }
+    }
+
+    /**
+     * Hide add restaurant dialog
+     */
+    fun hideAddRestaurantDialog() {
+        _uiState.update {
+            it.copy(showAddRestaurantDialog = false, addRestaurantCode = "")
+        }
+    }
+
+    /**
+     * Update restaurant code input
+     */
+    fun updateRestaurantCode(code: String) {
+        _uiState.update { it.copy(addRestaurantCode = code) }
+    }
+
+    /**
+     * Add restaurant by code
+     */
+    fun addRestaurant() {
+        viewModelScope.launch {
+            val code = _uiState.value.addRestaurantCode.trim()
+            if (code.isEmpty()) {
+                _uiState.update { it.copy(error = "Veuillez entrer un code restaurant") }
+                return@launch
+            }
+
+            _uiState.update { it.copy(isAddingRestaurant = true, error = null) }
+
+            when (val result = addRestaurantByCodeUseCase(code)) {
+                is Result.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isAddingRestaurant = false,
+                            showAddRestaurantDialog = false,
+                            addRestaurantSuccessMessage = result.data
+                        )
+                    }
+                    // Reload user to update restaurant count
+                    loadUser()
+                }
+                is Result.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            isAddingRestaurant = false,
+                            error = result.exception.message ?: "Erreur lors de l'ajout du restaurant"
+                        )
+                    }
+                }
+                is Result.Loading -> {
+                    _uiState.update { it.copy(isAddingRestaurant = true) }
+                }
+            }
+        }
+    }
+
+    /**
+     * Clear success message
+     */
+    fun clearSuccessMessage() {
+        _uiState.update { it.copy(addRestaurantSuccessMessage = null) }
     }
 
     /**

@@ -4,10 +4,12 @@ import com.fast.manger.food.data.repository.AuthRepositoryImpl
 import com.fast.manger.food.data.repository.CartRepositoryImpl
 import com.fast.manger.food.data.repository.MenuRepositoryImpl
 import com.fast.manger.food.data.repository.OrderRepositoryImpl
+import com.fast.manger.food.data.repository.RestaurantRepositoryImpl
 import com.fast.manger.food.domain.repository.AuthRepository
 import com.fast.manger.food.domain.repository.CartRepository
 import com.fast.manger.food.domain.repository.MenuRepository
 import com.fast.manger.food.domain.repository.OrderRepository
+import com.fast.manger.food.domain.repository.RestaurantRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -57,4 +59,13 @@ abstract class RepositoryModule {
     abstract fun bindCartRepository(
         cartRepositoryImpl: CartRepositoryImpl
     ): CartRepository
+
+    /**
+     * Binds RestaurantRepositoryImpl to RestaurantRepository interface
+     */
+    @Binds
+    @Singleton
+    abstract fun bindRestaurantRepository(
+        restaurantRepositoryImpl: RestaurantRepositoryImpl
+    ): RestaurantRepository
 }

@@ -1,0 +1,54 @@
+========================================
+🍔 RESTAURANT CODES FOR TESTING
+========================================
+Generated on: 2025-10-31
+
+Use any of these codes to test the Android app:
+- Enter manually in the RestaurantCodeScreen
+- Generate QR codes from these for QR scanner testing
+
+----------------------------------------
+
+1. Restaurant: Test Restaurant 3
+   ID: 6b1v3lvcf5y9xTKccaUo
+   CODE: F75WJW
+
+2. Restaurant: Test
+   ID: N0M0IxhCXCVpdFIwG6Io
+   CODE: U51ECQ
+
+3. Restaurant: kio
+   ID: SfZSSdBsb8BBviLyvoW2
+   CODE: MLS92K
+
+4. Restaurant: test2
+   ID: WncruzPs93NmCIPFOD6l
+   CODE: LXKHDI
+
+5. Restaurant: simo
+   ID: XGumODUEUdHkHHfUiwDZ
+   CODE: 87UCQ4
+
+6. Restaurant: 123 originale
+   ID: caZkMwEyyACmW6cl28q5
+   CODE: C8ER4X
+
+7. Restaurant: Ko
+   ID: p4YnqdIvFKDNnqRxTna8
+   CODE: JR63BF
+
+8. Restaurant: Fast Food Manager
+   ID: rest_default_001
+   CODE: MN0UTJ
+
+----------------------------------------
+
+QR CODE FORMAT:
+If you want to generate QR codes for testing,
+use this JSON format:
+{"restaurantCode": "F75WJW"}
+
+Or just the plain code:
+F75WJW
+
+========================================

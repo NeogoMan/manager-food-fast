@@ -15,5 +15,6 @@ data class CartUiState(
     val orderNotes: String = "",
     val error: String? = null,
     val orderPlacedSuccessfully: Boolean = false,
-    val orderId: String? = null
+    val orderId: String? = null,
+    val requiresAuthentication: Boolean = false
 )

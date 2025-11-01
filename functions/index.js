@@ -275,7 +275,8 @@ export const removeFCMToken = onCall(async (request) => {
 
 /**
  * Cloud Function: authenticateUser
- * Authenticates a user with username and password
+ * Authenticates a user with username/phone and password
+ * Supports both username and phone number login
  * Returns a Firebase Custom Auth Token
  */
 export const authenticateUser = onCall(async (request) => {
@@ -285,17 +286,24 @@ export const authenticateUser = onCall(async (request) => {
   if (!username || !password) {
     throw new HttpsError(
         "invalid-argument",
-        "Username and password are required",
+        "Username or phone number and password are required",
     );
   }
 
   try {
-    // Query Firestore for user by username
+    // Query Firestore for user by username OR phone
     const usersRef = db.collection("users");
-    const querySnapshot = await usersRef.where("username", "==", username).limit(1).get();
+
+    // Try to find user by username first
+    let querySnapshot = await usersRef.where("username", "==", username).limit(1).get();
+
+    // If not found by username, try phone number
+    if (querySnapshot.empty) {
+      querySnapshot = await usersRef.where("phone", "==", username).limit(1).get();
+    }
 
     if (querySnapshot.empty) {
-      throw new HttpsError("not-found", "Invalid username or password");
+      throw new HttpsError("not-found", "Invalid username/phone or password");
     }
 
     const userDoc = querySnapshot.docs[0];
@@ -314,21 +322,46 @@ export const authenticateUser = onCall(async (request) => {
       throw new HttpsError("not-found", "Invalid username or password");
     }
 
-    // Prepare custom claims with all user info including restaurantId
+    console.log(`🔐 === AUTHENTICATE USER: Login successful ===`);
+    console.log(`   User UID: ${userDoc.id}`);
+    console.log(`   Username: ${userData.username}`);
+    console.log(`   Name: ${userData.name}`);
+    console.log(`   Role: ${userData.role}`);
+    console.log(`   Restaurant ID: ${userData.restaurantId || "NULL"} ⭐`);
+
+    // Support for multi-restaurant: Ensure restaurantIds array exists
+    const restaurantIds = userData.restaurantIds || (userData.restaurantId ? [userData.restaurantId] : []);
+    const activeRestaurantId = userData.activeRestaurantId || userData.restaurantId || null;
+
+    // If user document doesn't have new fields, update it
+    if (!userData.restaurantIds && userData.restaurantId) {
+      console.log(`📝 Migrating user ${userDoc.id} to multi-restaurant format`);
+      await userDoc.ref.update({
+        restaurantIds: [userData.restaurantId],
+        activeRestaurantId: userData.restaurantId,
+      });
+    }
+
+    // Prepare custom claims with all user info including restaurantId and restaurantIds
     const customClaims = {
       role: userData.role,
       username: userData.username,
       name: userData.name,
       phone: userData.phone,
-      restaurantId: userData.restaurantId || null, // Multi-tenant: Include restaurantId
+      restaurantId: activeRestaurantId, // Points to active restaurant
+      restaurantIds: restaurantIds, // Array of all restaurants user has access to
+      activeRestaurantId: activeRestaurantId, // Currently selected restaurant
       isSuperAdmin: userData.isSuperAdmin || false,
     };
 
+    console.log(`📝 Setting custom claims:`, customClaims);
     // Set custom claims
     await auth.setCustomUserClaims(userDoc.id, customClaims);
+    console.log(`✅ Custom claims set successfully`);
 
     // Generate custom auth token with claims
     const customToken = await auth.createCustomToken(userDoc.id, customClaims);
+    console.log(`🎫 Custom token generated with restaurantId: ${activeRestaurantId || "NULL"}`);
 
     // Update last login
     await userDoc.ref.update({
@@ -345,7 +378,9 @@ export const authenticateUser = onCall(async (request) => {
         role: userData.role,
         phone: userData.phone || null,
         isActive: isActive,
-        restaurantId: userData.restaurantId || null, // Multi-tenant: Include restaurantId
+        restaurantId: activeRestaurantId, // Legacy field - now points to active restaurant
+        restaurantIds: restaurantIds, // NEW: Array of all restaurants user has access to
+        activeRestaurantId: activeRestaurantId, // NEW: Currently selected restaurant
         isSuperAdmin: userData.isSuperAdmin || false,
         createdAt: userData.createdAt || Date.now(),
         updatedAt: userData.updatedAt || Date.now(),
@@ -827,3 +862,458 @@ export const onOrderStatusChanged = onDocumentUpdated(
 
 // Note: onOrderCompleted functionality has been merged into onOrderStatusChanged above
 // The new function handles all order status changes and sends appropriate push notifications
+
+// ============================================================================
+// RESTAURANT VALIDATION & CLIENT SIGNUP FUNCTIONS
+// ============================================================================
+
+/**
+ * Cloud Function: validateRestaurantCode
+ * Validates a restaurant code and returns restaurant details
+ * Public (no authentication required)
+ */
+export const validateRestaurantCode = onCall(async (request) => {
+  const {code} = request.data;
+
+  // Validate input
+  if (!code || typeof code !== "string") {
+    throw new HttpsError(
+        "invalid-argument",
+        "Restaurant code is required",
+    );
+  }
+
+  // Normalize code to uppercase
+  const normalizedCode = code.trim().toUpperCase();
+
+  // Debug logging
+  console.log(`🔍 Validating restaurant code: "${normalizedCode}"`);
+
+  try {
+    // Query Firestore for restaurant by shortCode
+    const restaurantsRef = db.collection("restaurants");
+    const querySnapshot = await restaurantsRef
+        .where("shortCode", "==", normalizedCode)
+        .where("status", "in", ["active", "trial"])
+        .limit(1)
+        .get();
+
+    console.log(`📊 Query results: ${querySnapshot.size} documents found`);
+
+    if (querySnapshot.empty) {
+      console.log(`❌ No restaurant found for code: ${normalizedCode}`);
+      throw new HttpsError(
+          "not-found",
+          "Restaurant code not found or inactive",
+      );
+    }
+
+    console.log(`✅ Restaurant found: ${querySnapshot.docs[0].id}`);
+
+    const restaurantDoc = querySnapshot.docs[0];
+    const restaurantData = restaurantDoc.data();
+
+    return {
+      success: true,
+      restaurant: {
+        id: restaurantDoc.id,
+        name: restaurantData.name,
+        shortCode: restaurantData.shortCode,
+        email: restaurantData.email || null,
+        phone: restaurantData.phone || null,
+        status: restaurantData.status,
+        plan: restaurantData.plan,
+        branding: restaurantData.branding || null,
+      },
+    };
+  } catch (error) {
+    console.error("Validate restaurant code error:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError("internal", "Failed to validate restaurant code");
+  }
+});
+
+/**
+ * Cloud Function: signUpClient
+ * Registers a new client user with auto-generated username
+ * Links user to specific restaurant
+ */
+export const signUpClient = onCall(async (request) => {
+  const {restaurantId, name, phone, password} = request.data;
+
+  // Validate input
+  if (!restaurantId || !name || !phone || !password) {
+    throw new HttpsError(
+        "invalid-argument",
+        "Restaurant ID, name, phone, and password are required",
+    );
+  }
+
+  // Validate password strength
+  if (password.length < 6) {
+    throw new HttpsError(
+        "invalid-argument",
+        "Password must be at least 6 characters",
+    );
+  }
+
+  // Validate phone format (basic validation)
+  const phoneRegex = /^\+?[1-9]\d{1,14}$/; // E.164 format
+  if (!phoneRegex.test(phone.replace(/[\s-]/g, ""))) {
+    throw new HttpsError(
+        "invalid-argument",
+        "Invalid phone number format",
+    );
+  }
+
+  try {
+    // Verify restaurant exists and is active
+    const restaurantDoc = await db.collection("restaurants").doc(restaurantId).get();
+    if (!restaurantDoc.exists) {
+      throw new HttpsError("not-found", "Restaurant not found");
+    }
+
+    const restaurantData = restaurantDoc.data();
+    if (restaurantData.status !== "active" && restaurantData.status !== "trial") {
+      throw new HttpsError("failed-precondition", "Restaurant is not active");
+    }
+
+    // Check if phone number already exists for this restaurant
+    const existingUserByPhone = await db.collection("users")
+        .where("phone", "==", phone)
+        .where("restaurantId", "==", restaurantId)
+        .limit(1)
+        .get();
+
+    if (!existingUserByPhone.empty) {
+      throw new HttpsError(
+          "already-exists",
+          "Phone number already registered for this restaurant",
+      );
+    }
+
+    // Generate username: client_[phone_last4]_[random3]
+    const phoneLast4 = phone.replace(/\D/g, "").slice(-4);
+    const random3 = Math.random().toString(36).substring(2, 5);
+    let username = `client_${phoneLast4}_${random3}`;
+
+    // Ensure username is unique
+    let attempts = 0;
+    while (attempts < 5) {
+      const existingUsername = await db.collection("users")
+          .where("username", "==", username)
+          .limit(1)
+          .get();
+
+      if (existingUsername.empty) {
+        break; // Username is unique
+      }
+
+      // Generate new random suffix
+      const newRandom = Math.random().toString(36).substring(2, 5);
+      username = `client_${phoneLast4}_${newRandom}`;
+      attempts++;
+    }
+
+    if (attempts >= 5) {
+      throw new HttpsError(
+          "internal",
+          "Failed to generate unique username. Please try again.",
+      );
+    }
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Create user in Authentication
+    const userRecord = await auth.createUser({
+      uid: db.collection("users").doc().id,
+    });
+
+    console.log(`🔐 === SIGN UP CLIENT: User created in Firebase Auth ===`);
+    console.log(`   User UID: ${userRecord.uid}`);
+    console.log(`   Username: ${username}`);
+    console.log(`   Name: ${name}`);
+    console.log(`   Phone: ${phone}`);
+    console.log(`   Restaurant ID: ${restaurantId} ⭐`);
+
+    // Set custom claims
+    const customClaims = {
+      role: "client",
+      restaurantId: restaurantId,
+      username: username,
+      name: name,
+      phone: phone,
+    };
+
+    console.log(`📝 Setting custom claims:`, customClaims);
+    await auth.setCustomUserClaims(userRecord.uid, customClaims);
+    console.log(`✅ Custom claims set successfully`);
+
+    // Create user document in Firestore with multi-restaurant support
+    const userDoc = {
+      username,
+      passwordHash,
+      role: "client",
+      name,
+      phone,
+      restaurantId, // Legacy field - kept for backwards compatibility
+      restaurantIds: [restaurantId], // NEW: Array of restaurants user has access to
+      activeRestaurantId: restaurantId, // NEW: Currently selected restaurant
+      isSuperAdmin: false,
+      status: "active",
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    console.log(`💾 Creating Firestore user document with restaurantIds: [${restaurantId}]`);
+    console.log(`   Active Restaurant: ${restaurantId}`);
+    await db.collection("users").doc(userRecord.uid).set(userDoc);
+    console.log(`✅ Firestore user document created`);
+
+    // Generate custom auth token
+    const customToken = await auth.createCustomToken(userRecord.uid, {
+      role: "client",
+      restaurantId: restaurantId,
+      username: username,
+      name: name,
+      phone: phone,
+    });
+
+    console.log(`🎫 Custom token generated with restaurantId: ${restaurantId}`);
+    console.log(`Client user created: ${userRecord.uid} with username: ${username}`);
+
+    return {
+      success: true,
+      token: customToken,
+      user: {
+        id: userRecord.uid,
+        username: username,
+        name: name,
+        phone: phone,
+        role: "client",
+        restaurantId: restaurantId, // Legacy field
+        restaurantIds: [restaurantId], // NEW: Array of restaurants
+        activeRestaurantId: restaurantId, // NEW: Current restaurant
+        isActive: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+    };
+  } catch (error) {
+    console.error("Sign up client error:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError("internal", "Failed to create client account");
+  }
+});
+
+/**
+ * Cloud Function: addRestaurantToUser
+ * Allows an authenticated user to add a new restaurant to their account
+ * @param {string} restaurantCode - Restaurant code to add
+ */
+export const addRestaurantToUser = onCall(async (request) => {
+  const {restaurantCode} = request.data;
+
+  // Verify user is authenticated
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "User must be authenticated");
+  }
+
+  const userId = request.auth.uid;
+
+  // Validate input
+  if (!restaurantCode) {
+    throw new HttpsError("invalid-argument", "Restaurant code is required");
+  }
+
+  try {
+    console.log(`🍽️ === ADD RESTAURANT TO USER ===`);
+    console.log(`   User ID: ${userId}`);
+    console.log(`   Restaurant Code: ${restaurantCode}`);
+
+    // Validate restaurant code
+    const normalizedCode = restaurantCode.trim().toUpperCase();
+    const restaurantsRef = db.collection("restaurants");
+    const querySnapshot = await restaurantsRef
+        .where("shortCode", "==", normalizedCode)
+        .where("status", "in", ["active", "trial"])
+        .limit(1)
+        .get();
+
+    if (querySnapshot.empty) {
+      console.log(`❌ Restaurant code not found: ${normalizedCode}`);
+      throw new HttpsError("not-found", "Restaurant code not found or inactive");
+    }
+
+    const restaurantDoc = querySnapshot.docs[0];
+    const restaurantId = restaurantDoc.id;
+    const restaurantData = restaurantDoc.data();
+
+    console.log(`✅ Restaurant found: ${restaurantData.name} (${restaurantId})`);
+
+    // Get user document
+    const userRef = db.collection("users").doc(userId);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      throw new HttpsError("not-found", "User not found");
+    }
+
+    const userData = userDoc.data();
+    const currentRestaurantIds = userData.restaurantIds || (userData.restaurantId ? [userData.restaurantId] : []);
+
+    // Check if restaurant is already added
+    if (currentRestaurantIds.includes(restaurantId)) {
+      console.log(`⚠️ Restaurant already added to user`);
+      return {
+        success: true,
+        message: "Restaurant already in your list",
+        restaurant: {
+          id: restaurantId,
+          name: restaurantData.name,
+          shortCode: restaurantData.shortCode,
+        },
+      };
+    }
+
+    // Add restaurant to user's list
+    const updatedRestaurantIds = [...currentRestaurantIds, restaurantId];
+
+    await userRef.update({
+      restaurantIds: updatedRestaurantIds,
+      updatedAt: new Date(),
+    });
+
+    console.log(`✅ Restaurant added to user. Total restaurants: ${updatedRestaurantIds.length}`);
+
+    return {
+      success: true,
+      message: "Restaurant added successfully",
+      restaurant: {
+        id: restaurantId,
+        name: restaurantData.name,
+        shortCode: restaurantData.shortCode,
+      },
+      totalRestaurants: updatedRestaurantIds.length,
+    };
+  } catch (error) {
+    console.error("Add restaurant error:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError("internal", "Failed to add restaurant");
+  }
+});
+
+/**
+ * Cloud Function: setActiveRestaurant
+ * Sets the active restaurant for a user and updates their token claims
+ * @param {string} restaurantId - Restaurant ID to set as active
+ */
+export const setActiveRestaurant = onCall(async (request) => {
+  const {restaurantId} = request.data;
+
+  // Verify user is authenticated
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "User must be authenticated");
+  }
+
+  const userId = request.auth.uid;
+
+  // Validate input
+  if (!restaurantId) {
+    throw new HttpsError("invalid-argument", "Restaurant ID is required");
+  }
+
+  try {
+    console.log(`🔄 === SET ACTIVE RESTAURANT ===`);
+    console.log(`   User ID: ${userId}`);
+    console.log(`   Restaurant ID: ${restaurantId}`);
+
+    // Get user document
+    const userRef = db.collection("users").doc(userId);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      throw new HttpsError("not-found", "User not found");
+    }
+
+    const userData = userDoc.data();
+    const restaurantIds = userData.restaurantIds || (userData.restaurantId ? [userData.restaurantId] : []);
+
+    // Verify user has access to this restaurant
+    if (!restaurantIds.includes(restaurantId)) {
+      console.log(`❌ User doesn't have access to restaurant: ${restaurantId}`);
+      throw new HttpsError(
+          "permission-denied",
+          "You don't have access to this restaurant",
+      );
+    }
+
+    // Get restaurant details
+    const restaurantDoc = await db.collection("restaurants").doc(restaurantId).get();
+
+    if (!restaurantDoc.exists) {
+      throw new HttpsError("not-found", "Restaurant not found");
+    }
+
+    const restaurantData = restaurantDoc.data();
+
+    // Update user's active restaurant
+    await userRef.update({
+      activeRestaurantId: restaurantId,
+      restaurantId: restaurantId, // Update legacy field too
+      updatedAt: new Date(),
+    });
+
+    console.log(`✅ Active restaurant updated to: ${restaurantData.name}`);
+
+    // Update custom claims with new active restaurant
+    const customClaims = {
+      role: userData.role,
+      restaurantId: restaurantId, // Update token claim for security rules
+      username: userData.username,
+      name: userData.name,
+      phone: userData.phone,
+      isSuperAdmin: userData.isSuperAdmin || false,
+    };
+
+    await auth.setCustomUserClaims(userId, customClaims);
+
+    console.log(`✅ Token claims updated with new restaurantId`);
+
+    // Generate new token with updated claims
+    const customToken = await auth.createCustomToken(userId, customClaims);
+
+    return {
+      success: true,
+      message: "Active restaurant updated",
+      token: customToken,
+      restaurant: {
+        id: restaurantId,
+        name: restaurantData.name,
+        shortCode: restaurantData.shortCode,
+      },
+    };
+  } catch (error) {
+    console.error("Set active restaurant error:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError("internal", "Failed to set active restaurant");
+  }
+});

@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fast.manger.food.domain.model.Result
 import com.fast.manger.food.domain.usecase.auth.GetCurrentUserUseCase
-import com.fast.manger.food.domain.usecase.auth.LoginUseCase
+import com.fast.manger.food.domain.usecase.auth.LoginWithIdentifierUseCase
 import com.fast.manger.food.domain.usecase.notifications.RegisterFCMTokenUseCase
 import com.fast.manger.food.util.PreferencesManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,7 +23,7 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class LoginViewModel @Inject constructor(
-    private val loginUseCase: LoginUseCase,
+    private val loginWithIdentifierUseCase: LoginWithIdentifierUseCase,
     private val getCurrentUserUseCase: GetCurrentUserUseCase,
     private val registerFCMTokenUseCase: RegisterFCMTokenUseCase,
     private val preferencesManager: PreferencesManager
@@ -87,7 +87,7 @@ class LoginViewModel @Inject constructor(
         _uiState.update { it.copy(isLoading = true, error = null) }
 
         viewModelScope.launch {
-            when (val result = loginUseCase(currentState.username, currentState.password)) {
+            when (val result = loginWithIdentifierUseCase(currentState.username, currentState.password)) {
                 is Result.Success -> {
                     _uiState.update {
                         it.copy(

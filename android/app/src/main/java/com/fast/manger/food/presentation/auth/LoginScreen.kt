@@ -29,6 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -52,10 +53,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fast.manger.food.R
+import com.fast.manger.food.di.PreferencesEntryPoint
 import com.fast.manger.food.presentation.components.LoadingScreen
 import com.fast.manger.food.presentation.components.NotificationPermissionBottomSheet
 import com.fast.manger.food.presentation.components.PrimaryButton
-import com.fast.manger.food.util.PreferencesManager
+import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.launch
 
 /**
@@ -66,6 +68,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
+    onSignUpClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: LoginViewModel = hiltViewModel()
 ) {
@@ -78,8 +81,15 @@ fun LoginScreen(
     // Bottom sheet state
     val sheetState = rememberModalBottomSheetState()
 
-    // Create PreferencesManager instance
-    val preferencesManager = remember { PreferencesManager(context) }
+    // Get PreferencesManager from Hilt
+    val preferencesManager = remember {
+        val appContext = context.applicationContext
+        val entryPoint = EntryPointAccessors.fromApplication(
+            appContext,
+            PreferencesEntryPoint::class.java
+        )
+        entryPoint.preferencesManager()
+    }
 
     // Permission launcher
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -139,6 +149,7 @@ fun LoginScreen(
                     focusManager.clearFocus()
                     viewModel.onLoginClick()
                 },
+                onSignUpClick = onSignUpClick,
                 modifier = Modifier.padding(paddingValues)
             )
         }
@@ -152,6 +163,7 @@ private fun LoginContent(
     onUsernameChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onLoginClick: () -> Unit,
+    onSignUpClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var passwordVisible by remember { mutableStateOf(false) }
@@ -192,11 +204,11 @@ private fun LoginContent(
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // Username field
+        // Username or Phone field
         OutlinedTextField(
             value = username,
             onValueChange = onUsernameChange,
-            label = { Text("Nom d'utilisateur") },
+            label = { Text("Nom d'utilisateur ou téléphone") },
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Default.Person,
@@ -258,5 +270,15 @@ private fun LoginContent(
             onClick = onLoginClick,
             enabled = username.isNotBlank() && password.isNotBlank()
         )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Sign up button
+        TextButton(onClick = onSignUpClick) {
+            Text(
+                text = "Pas encore de compte? Créer un compte",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
     }
 }

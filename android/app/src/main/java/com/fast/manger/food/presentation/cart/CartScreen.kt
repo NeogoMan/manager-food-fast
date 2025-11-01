@@ -58,6 +58,7 @@ import com.fast.manger.food.presentation.components.PrimaryButton
 fun CartScreen(
     onNavigateBack: () -> Unit,
     onOrderPlaced: () -> Unit,
+    onNavigateToSignUp: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: CartViewModel = hiltViewModel()
 ) {
@@ -71,6 +72,14 @@ fun CartScreen(
             snackbarHostState.showSnackbar("Commande passée avec succès!")
             viewModel.resetOrderPlacedState()
             onOrderPlaced()
+        }
+    }
+
+    // Navigate to signup when authentication is required
+    LaunchedEffect(uiState.requiresAuthentication) {
+        if (uiState.requiresAuthentication) {
+            viewModel.resetAuthenticationState()
+            onNavigateToSignUp()
         }
     }
 

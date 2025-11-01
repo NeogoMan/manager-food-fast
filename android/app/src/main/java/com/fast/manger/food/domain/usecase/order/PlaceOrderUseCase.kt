@@ -50,21 +50,31 @@ class PlaceOrderUseCase @Inject constructor(
      */
     suspend operator fun invoke(notes: String? = null): Result<String> {
         try {
+            android.util.Log.d("PlaceOrderUseCase", "=== PLACING ORDER START ===")
+
             // Get current user
             val userResult = authRepository.getCurrentUser()
             if (userResult !is Result.Success || userResult.data == null) {
+                android.util.Log.e("PlaceOrderUseCase", "User not authenticated")
                 return Result.Error(Exception("Utilisateur non authentifié"))
             }
             val user = userResult.data
+            android.util.Log.d("PlaceOrderUseCase", "User ID: ${user.id}")
+            android.util.Log.d("PlaceOrderUseCase", "User name: ${user.name}")
+            android.util.Log.d("PlaceOrderUseCase", "User role: ${user.role}")
 
             // Get restaurantId from Firebase Auth token claims
             val restaurantId = try {
-                getRestaurantId()
+                val id = getRestaurantId()
+                android.util.Log.d("PlaceOrderUseCase", "✅ RestaurantId from token: $id")
+                id
             } catch (e: Exception) {
+                android.util.Log.e("PlaceOrderUseCase", "❌ Failed to get restaurantId from token", e)
                 null
             }
 
             if (restaurantId == null) {
+                android.util.Log.e("PlaceOrderUseCase", "❌ RestaurantId is NULL - cannot create order")
                 return Result.Error(Exception("Restaurant non identifié"))
             }
 
@@ -111,14 +121,33 @@ class PlaceOrderUseCase @Inject constructor(
                 updatedAt = System.currentTimeMillis()
             )
 
+            android.util.Log.d("PlaceOrderUseCase", "📦 Creating order:")
+            android.util.Log.d("PlaceOrderUseCase", "  - Order number: $orderNumber")
+            android.util.Log.d("PlaceOrderUseCase", "  - User ID: ${user.id}")
+            android.util.Log.d("PlaceOrderUseCase", "  - Restaurant ID: $restaurantId ⭐")
+            android.util.Log.d("PlaceOrderUseCase", "  - Customer name: ${user.name}")
+            android.util.Log.d("PlaceOrderUseCase", "  - Total amount: $total")
+            android.util.Log.d("PlaceOrderUseCase", "  - Item count: ${cartItems.sumOf { it.quantity }}")
+            android.util.Log.d("PlaceOrderUseCase", "  - Status: ${OrderStatus.AWAITING_APPROVAL}")
+
             // Place order
             val result = orderRepository.placeOrder(order)
 
-            // Clear cart on success
-            if (result is Result.Success) {
-                cartRepository.clearCart()
+            when (result) {
+                is Result.Success -> {
+                    android.util.Log.d("PlaceOrderUseCase", "✅ Order created successfully with ID: ${result.data}")
+                    android.util.Log.d("PlaceOrderUseCase", "🧹 Clearing cart...")
+                    cartRepository.clearCart()
+                }
+                is Result.Error -> {
+                    android.util.Log.e("PlaceOrderUseCase", "❌ Order creation failed: ${result.exception.message}")
+                }
+                else -> {
+                    android.util.Log.w("PlaceOrderUseCase", "⏳ Order creation in progress...")
+                }
             }
 
+            android.util.Log.d("PlaceOrderUseCase", "=== PLACING ORDER END ===")
             return result
         } catch (e: Exception) {
             return Result.Error(Exception("Échec de la commande: ${e.message}"))

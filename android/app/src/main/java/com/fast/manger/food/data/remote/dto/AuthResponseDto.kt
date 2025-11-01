@@ -42,7 +42,17 @@ data class UserDataDto(
     val phone: String? = null,
 
     @SerializedName("role")
-    val role: String = "client"
+    val role: String = "client",
+
+    // Multi-restaurant support
+    @SerializedName("restaurantId")
+    val restaurantId: String? = null,
+
+    @SerializedName("restaurantIds")
+    val restaurantIds: List<String>? = null,
+
+    @SerializedName("activeRestaurantId")
+    val activeRestaurantId: String? = null
 ) {
     /**
      * Convert to Domain User model
@@ -55,6 +65,10 @@ data class UserDataDto(
             phone = phone,
             role = UserRole.fromString(role),
             isActive = true,
+            // Multi-restaurant support: Use restaurantIds or fallback to legacy restaurantId
+            restaurantId = restaurantId,
+            restaurantIds = restaurantIds ?: (restaurantId?.let { listOf(it) } ?: emptyList()),
+            activeRestaurantId = activeRestaurantId ?: restaurantId,
             createdAt = System.currentTimeMillis(),
             updatedAt = System.currentTimeMillis()
         )

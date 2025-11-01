@@ -5,9 +5,29 @@ package com.fast.manger.food.presentation.navigation
  */
 sealed class Screen(val route: String) {
     /**
+     * Restaurant Code screen - Enter restaurant code (first-time user)
+     */
+    data object RestaurantCode : Screen("restaurant_code")
+
+    /**
+     * QR Scanner screen - Scan restaurant QR code
+     */
+    data object QRScanner : Screen("qr_scanner")
+
+    /**
+     * Sign Up screen - Register new client account
+     */
+    data object SignUp : Screen("signup")
+
+    /**
      * Login screen - Authentication
      */
     data object Login : Screen("login")
+
+    /**
+     * Restaurant Selection screen - Choose active restaurant (for users with multiple restaurants)
+     */
+    data object RestaurantSelection : Screen("restaurant_selection")
 
     /**
      * Menu screen - Browse menu items

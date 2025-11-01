@@ -10,12 +10,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.fast.manger.food.presentation.components.LoadingScreen
 import com.fast.manger.food.presentation.navigation.NavGraph
 import com.fast.manger.food.presentation.navigation.Screen
 import com.fast.manger.food.presentation.navigation.bottomNavItems
@@ -26,14 +29,21 @@ import com.fast.manger.food.presentation.navigation.bottomNavItems
  */
 @Composable
 fun MainScreen(
-    startDestination: String = Screen.Login.route,
     cartItemCount: Int = 0,
     initialOrderId: String? = null,
-    openOrderDetails: Boolean = false
+    openOrderDetails: Boolean = false,
+    viewModel: MainViewModel = hiltViewModel()
 ) {
+    val startDestination by viewModel.startDestination.collectAsState()
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+
+    // Show loading while determining start destination
+    if (startDestination == null) {
+        LoadingScreen(message = "Chargement...")
+        return
+    }
 
     // Handle notification deep link - navigate to Orders screen
     LaunchedEffect(initialOrderId, openOrderDetails) {
@@ -47,8 +57,14 @@ fun MainScreen(
 
     Scaffold(
         bottomBar = {
-            // Show bottom bar only on main screens (not on login)
-            if (currentDestination?.route != Screen.Login.route) {
+            // Show bottom bar only on main screens (not on auth/onboarding screens)
+            val hideBottomBarRoutes = setOf(
+                Screen.RestaurantCode.route,
+                Screen.QRScanner.route,
+                Screen.Login.route,
+                Screen.SignUp.route
+            )
+            if (currentDestination?.route !in hideBottomBarRoutes) {
                 NavigationBar {
                     bottomNavItems.forEach { item ->
                         val isSelected = currentDestination?.hierarchy?.any {
@@ -102,7 +118,7 @@ fun MainScreen(
     ) { innerPadding ->
         NavGraph(
             navController = navController,
-            startDestination = startDestination,
+            startDestination = startDestination!!, // Safe to use !! here since we checked for null above
             modifier = Modifier.padding(innerPadding)
         )
     }

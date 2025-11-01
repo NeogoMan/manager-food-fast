@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.fast.manger.food.di.RestaurantDataStore
 import com.fast.manger.food.domain.model.CartItem
 import com.fast.manger.food.domain.model.MenuItem
 import com.fast.manger.food.domain.model.Result
@@ -22,7 +23,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class CartRepositoryImpl @Inject constructor(
-    private val dataStore: DataStore<Preferences>,
+    @RestaurantDataStore private val dataStore: DataStore<Preferences>,
     private val gson: Gson
 ) : CartRepository {
 

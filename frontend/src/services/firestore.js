@@ -401,8 +401,15 @@ export const usersService = {
   },
 
   // Subscribe to users (real-time)
-  subscribe(callback) {
-    const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
+  subscribe(callback, restaurantId = null) {
+    let q = collection(db, 'users');
+
+    // Filter by restaurantId if provided (multi-tenant)
+    if (restaurantId) {
+      q = query(q, where('restaurantId', '==', restaurantId));
+    }
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
       const users = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),

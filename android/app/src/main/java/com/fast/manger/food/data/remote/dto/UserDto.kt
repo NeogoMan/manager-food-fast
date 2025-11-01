@@ -31,6 +31,16 @@ data class UserDto(
     @PropertyName("fcmTokenUpdatedAt")
     val fcmTokenUpdatedAt: Timestamp? = null,
 
+    // Multi-restaurant support
+    @PropertyName("restaurantId")
+    val restaurantId: String? = null,
+
+    @PropertyName("restaurantIds")
+    val restaurantIds: List<String>? = null,
+
+    @PropertyName("activeRestaurantId")
+    val activeRestaurantId: String? = null,
+
     @PropertyName("createdAt")
     val createdAt: Timestamp? = null,
 
@@ -50,6 +60,10 @@ data class UserDto(
             isActive = isActive,
             fcmToken = fcmToken,
             fcmTokenUpdatedAt = fcmTokenUpdatedAt?.toDate()?.time,
+            // Multi-restaurant support: Use restaurantIds or fallback to legacy restaurantId
+            restaurantId = restaurantId,
+            restaurantIds = restaurantIds ?: (restaurantId?.let { listOf(it) } ?: emptyList()),
+            activeRestaurantId = activeRestaurantId ?: restaurantId,
             createdAt = createdAt?.toDate()?.time ?: System.currentTimeMillis(),
             updatedAt = updatedAt?.toDate()?.time ?: System.currentTimeMillis()
         )
@@ -82,6 +96,12 @@ data class UserDto(
                 user.phone?.let { put("phone", it) }
                 user.fcmToken?.let { put("fcmToken", it) }
                 user.fcmTokenUpdatedAt?.let { put("fcmTokenUpdatedAt", Timestamp(java.util.Date(it))) }
+                // Multi-restaurant support
+                user.restaurantId?.let { put("restaurantId", it) }
+                if (user.restaurantIds.isNotEmpty()) {
+                    put("restaurantIds", user.restaurantIds)
+                }
+                user.activeRestaurantId?.let { put("activeRestaurantId", it) }
             }
         }
     }

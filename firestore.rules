@@ -45,10 +45,23 @@ service cloud.firestore {
       return request.auth.token.restaurantId;
     }
 
-    function belongsToSameRestaurant(restaurantId) {
+    // NEW: Get user's restaurant IDs array for multi-restaurant support
+    function getUserRestaurantIds() {
+      // Return restaurantIds array if it exists, otherwise fall back to single restaurantId
+      return request.auth.token.restaurantIds != null ?
+             request.auth.token.restaurantIds :
+             (request.auth.token.restaurantId != null ? [request.auth.token.restaurantId] : []);
+    }
+
+    // NEW: Check if user has access to a specific restaurant
+    function hasAccessToRestaurant(restaurantId) {
       return isAuthenticated() &&
-             request.auth.token.restaurantId != null &&
-             request.auth.token.restaurantId == restaurantId;
+             restaurantId in getUserRestaurantIds();
+    }
+
+    // Legacy: Check if user belongs to same restaurant (for backward compatibility)
+    function belongsToSameRestaurant(restaurantId) {
+      return hasAccessToRestaurant(restaurantId);
     }
 
     function isValidRestaurantId(restaurantId) {
@@ -69,33 +82,35 @@ service cloud.firestore {
     }
 
     // USERS COLLECTION
-    // Multi-tenant: Users isolated by restaurantId
+    // Multi-tenant: Users isolated by restaurantId(s)
+    // Support for multi-restaurant access via restaurantIds array
     // Only managers within the same restaurant can manage users
-    // Users can update their own FCM token
+    // Users can update their own FCM token and restaurantIds
     match /users/{userId} {
-      // Users can read others in their restaurant, super admins can read all
+      // Users can read themselves or others in their restaurant(s), super admins can read all
       allow read: if isAuthenticated() &&
                      (isSuperAdmin() ||
-                      belongsToSameRestaurant(resource.data.restaurantId));
+                      isOwner(userId) ||
+                      hasAccessToRestaurant(resource.data.restaurantId));
 
       // Managers can create users in their restaurant, super admins can create in any
       allow create: if (isManager() &&
                         isValidRestaurantId(request.resource.data.restaurantId) &&
-                        belongsToSameRestaurant(request.resource.data.restaurantId)) ||
+                        hasAccessToRestaurant(request.resource.data.restaurantId)) ||
                        isSuperAdmin();
 
       // Allow managers to update users in their restaurant
-      // Allow users to update only their FCM token and related fields
+      // Allow users to update their FCM token, restaurantIds, and activeRestaurantId
       // Super admins can update anyone
       allow update: if isSuperAdmin() ||
-                       (isManager() && belongsToSameRestaurant(resource.data.restaurantId)) ||
+                       (isManager() && hasAccessToRestaurant(resource.data.restaurantId)) ||
                        (isOwner(userId) &&
                         request.resource.data.diff(resource.data).affectedKeys()
-                          .hasOnly(['fcmToken', 'fcmTokenUpdatedAt']));
+                          .hasOnly(['fcmToken', 'fcmTokenUpdatedAt', 'restaurantIds', 'activeRestaurantId', 'updatedAt']));
 
       // Only managers in same restaurant or super admins can delete
       allow delete: if isSuperAdmin() ||
-                       (isManager() && belongsToSameRestaurant(resource.data.restaurantId));
+                       (isManager() && hasAccessToRestaurant(resource.data.restaurantId));
     }
 
     // MENU COLLECTION (used by web app)

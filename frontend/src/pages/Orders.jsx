@@ -73,16 +73,25 @@ export default function Orders() {
     // Get restaurantId from Firebase Auth token claims
     async function setupSubscriptions() {
       try {
+        console.log('🔍 === ORDERS PAGE: Setting up subscriptions ===');
         const auth = await import('../config/firebase').then(m => m.auth);
         const idTokenResult = await auth.currentUser.getIdTokenResult();
         const restaurantId = idTokenResult.claims.restaurantId;
 
+        console.log('📋 User info:', {
+          uid: auth.currentUser.uid,
+          role: user?.role,
+          userId: user?.id,
+          restaurantId: restaurantId
+        });
+
         if (!restaurantId) {
-          console.error('No restaurantId found in auth token');
+          console.error('❌ No restaurantId found in auth token');
           setIsLoading(false);
           return;
         }
 
+        console.log('✅ RestaurantId from token:', restaurantId);
         setIsLoading(true);
 
         // Subscribe to orders with role-based filtering
@@ -91,7 +100,18 @@ export default function Orders() {
           ? { userId: user.id, restaurantId }
           : { restaurantId };
 
+        console.log('🔎 Subscription filter:', subscriptionFilter);
+
         const unsubscribeOrders = ordersService.subscribe((orders) => {
+          console.log('📦 Received orders:', orders.length);
+          console.log('📊 Orders detail:', orders.map(o => ({
+            id: o.id,
+            orderNumber: o.orderNumber,
+            restaurantId: o.restaurantId,
+            userId: o.userId,
+            status: o.status,
+            total: o.totalAmount
+          })));
           setOrdersList(orders);
           setIsLoading(false);
         }, subscriptionFilter);
