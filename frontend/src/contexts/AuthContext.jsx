@@ -27,6 +27,7 @@ export function AuthProvider({ children }) {
             name: idTokenResult.claims.name || 'User',
             role: idTokenResult.claims.role || 'client',
             phone: idTokenResult.claims.phone || null,
+            restaurantId: idTokenResult.claims.restaurantId || null,
             isSuperAdmin: idTokenResult.claims.isSuperAdmin || false,
           });
         } else {
@@ -64,6 +65,7 @@ export function AuthProvider({ children }) {
         name: userData.name,
         role: userData.role,
         phone: userData.phone,
+        restaurantId: userData.restaurantId || null,
         isSuperAdmin: userData.isSuperAdmin || false,
       });
 
