@@ -14,7 +14,7 @@ const KitchenDisplaySettings = ({ disabled = false }) => {
       await updateKitchenDisplaySettings({ [key]: value });
     } catch (error) {
       console.error('Error updating kitchen display settings:', error);
-      alert('Erreur lors de la mise à jour des paramètres');
+      alert(error.message || 'Erreur lors de la mise à jour des paramètres');
     } finally {
       setIsSaving(false);
     }
@@ -26,7 +26,7 @@ const KitchenDisplaySettings = ({ disabled = false }) => {
       await updateKitchenDisplaySettings({ fontSize });
     } catch (error) {
       console.error('Error updating font size:', error);
-      alert('Erreur lors de la mise à jour de la taille de police');
+      alert(error.message || 'Erreur lors de la mise à jour de la taille de police');
     } finally {
       setIsSaving(false);
     }

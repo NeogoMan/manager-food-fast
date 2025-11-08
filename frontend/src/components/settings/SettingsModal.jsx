@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSettings } from '../../contexts/SettingsContext';
 import TicketSettings from './TicketSettings';
 import KitchenDisplaySettings from './KitchenDisplaySettings';
 import NotificationSettings from './NotificationSettings';
 
 const SettingsModal = ({ isOpen, onClose }) => {
   const { user } = useAuth();
+  const { loading: settingsLoading } = useSettings();
   const [activeTab, setActiveTab] = useState('ticket');
 
   // Determine access level based on role
@@ -14,6 +16,21 @@ const SettingsModal = ({ isOpen, onClose }) => {
   const isViewOnly = !isManager && !isCashier; // Admin or other roles
 
   if (!isOpen) return null;
+
+  // Don't render if user is not loaded
+  if (!user || !user.restaurantId) {
+    return (
+      <>
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={onClose} />
+        <div className="fixed inset-y-0 right-0 w-full sm:w-[600px] bg-white dark:bg-gray-900 shadow-2xl z-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Chargement...</p>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   const tabs = [
     {

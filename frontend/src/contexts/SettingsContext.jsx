@@ -114,8 +114,14 @@ export const SettingsProvider = ({ children }) => {
 
   // Update settings function
   const updateSettings = async (updates) => {
-    if (!restaurantId || !user) {
-      throw new Error('No restaurant or user context');
+    if (!restaurantId) {
+      console.error('Cannot update settings: No restaurant ID available');
+      throw new Error('No restaurant ID available. Please ensure you are logged in.');
+    }
+
+    if (!user?.uid) {
+      console.error('Cannot update settings: No user ID available');
+      throw new Error('No user ID available. Please ensure you are logged in.');
     }
 
     try {

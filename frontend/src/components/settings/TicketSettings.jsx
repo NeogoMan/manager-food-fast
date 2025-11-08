@@ -17,7 +17,7 @@ const TicketSettings = ({ disabled = false }) => {
       await updateTicketSettings({ [key]: value });
     } catch (error) {
       console.error('Error updating ticket settings:', error);
-      alert('Erreur lors de la mise à jour des paramètres');
+      alert(error.message || 'Erreur lors de la mise à jour des paramètres');
     } finally {
       setIsSaving(false);
     }
@@ -34,7 +34,7 @@ const TicketSettings = ({ disabled = false }) => {
       });
     } catch (error) {
       console.error('Error updating ticket format:', error);
-      alert('Erreur lors de la mise à jour du format de ticket');
+      alert(error.message || 'Erreur lors de la mise à jour du format de ticket');
     } finally {
       setIsSaving(false);
     }
@@ -46,7 +46,7 @@ const TicketSettings = ({ disabled = false }) => {
       await updateTicketSettings({ tvaRate });
     } catch (error) {
       console.error('Error updating TVA rate:', error);
-      alert('Erreur lors de la mise à jour du taux de TVA');
+      alert(error.message || 'Erreur lors de la mise à jour du taux de TVA');
     } finally {
       setIsSaving(false);
     }
@@ -58,7 +58,7 @@ const TicketSettings = ({ disabled = false }) => {
       await updateTicketSettings({ orderNumberFormat: format });
     } catch (error) {
       console.error('Error updating order number format:', error);
-      alert('Erreur lors de la mise à jour du format de numéro');
+      alert(error.message || 'Erreur lors de la mise à jour du format de numéro');
     } finally {
       setIsSaving(false);
     }
@@ -71,7 +71,7 @@ const TicketSettings = ({ disabled = false }) => {
       await updateTicketSettings({ footerMessage: message });
     } catch (error) {
       console.error('Error updating footer message:', error);
-      alert('Erreur lors de la mise à jour du message');
+      alert(error.message || 'Erreur lors de la mise à jour du message');
     } finally {
       setIsSaving(false);
     }
@@ -88,7 +88,7 @@ const TicketSettings = ({ disabled = false }) => {
       });
     } catch (error) {
       console.error('Error updating font size:', error);
-      alert('Erreur lors de la mise à jour de la taille de police');
+      alert(error.message || 'Erreur lors de la mise à jour de la taille de police');
     } finally {
       setIsSaving(false);
     }

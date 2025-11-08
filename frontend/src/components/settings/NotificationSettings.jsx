@@ -14,7 +14,7 @@ const NotificationSettings = ({ disabled = false }) => {
       await updateNotificationSettings({ [key]: value });
     } catch (error) {
       console.error('Error updating notification settings:', error);
-      alert('Erreur lors de la mise à jour des paramètres');
+      alert(error.message || 'Erreur lors de la mise à jour des paramètres');
     } finally {
       setIsSaving(false);
     }
@@ -26,7 +26,7 @@ const NotificationSettings = ({ disabled = false }) => {
       await updateNotificationSettings({ soundVolume: volume });
     } catch (error) {
       console.error('Error updating volume:', error);
-      alert('Erreur lors de la mise à jour du volume');
+      alert(error.message || 'Erreur lors de la mise à jour du volume');
     } finally {
       setIsSaving(false);
     }
