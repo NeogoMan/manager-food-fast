@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useSidebar } from '../contexts/SidebarContext';
 import ThemeToggle from './ThemeToggle';
+import SettingsButton from './settings/SettingsButton';
 import { appName, nav, auth, users, orders } from '../utils/translations';
 
 /**
@@ -194,6 +195,13 @@ export default function Sidebar() {
             ))}
           </div>
 
+          {/* Settings Button for Manager and Cashier */}
+          {(user?.role === 'manager' || user?.role === 'cashier') && (
+            <div className="mb-4">
+              <SettingsButton className="w-full" />
+            </div>
+          )}
+
           {user && (
             <div
               className="px-4 py-3 mb-2 rounded-lg"
@@ -305,6 +313,13 @@ export default function Sidebar() {
 
         {/* Sidebar Footer */}
         <div className="border-t px-3 py-4" style={{ borderColor: 'var(--border-color)' }}>
+          {/* Settings Button for Manager and Cashier */}
+          {!isCollapsed && (user?.role === 'manager' || user?.role === 'cashier') && (
+            <div className="mb-4">
+              <SettingsButton className="w-full justify-center" />
+            </div>
+          )}
+
           {/* Theme Toggle and Fullscreen in Sidebar Footer */}
           {!isCollapsed && (
             <div className="flex items-center justify-center space-x-2 mb-4">

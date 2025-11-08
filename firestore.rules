@@ -79,6 +79,29 @@ service cloud.firestore {
                         request.resource.data.diff(resource.data).affectedKeys()
                           .hasOnly(['branding', 'updatedAt'])); // Managers can only update branding
       allow delete: if isSuperAdmin();
+
+      // SETTINGS SUBCOLLECTION
+      // Settings for each restaurant (ticket, printer, kitchen display, notifications)
+      // Managers have full access, Cashiers can read/update ticket settings only
+      match /settings/{settingsId} {
+        // Staff in same restaurant can read, super admins can read all
+        allow read: if isSuperAdmin() ||
+                       (isStaff() && belongsToSameRestaurant(restaurantId));
+
+        // Managers can create/update all settings, Cashiers can only update ticket settings
+        allow create: if isSuperAdmin() ||
+                         (isManager() && belongsToSameRestaurant(restaurantId));
+
+        allow update: if isSuperAdmin() ||
+                         (isManager() && belongsToSameRestaurant(restaurantId)) ||
+                         (isCashier() && belongsToSameRestaurant(restaurantId) &&
+                          request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['ticket', 'updatedAt', 'updatedBy']));
+
+        // Only managers and super admins can delete
+        allow delete: if isSuperAdmin() ||
+                         (isManager() && belongsToSameRestaurant(restaurantId));
+      }
     }
 
     // USERS COLLECTION

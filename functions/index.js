@@ -1359,6 +1359,46 @@ export const createRestaurant = onCall(async (request) => {
 
     const restaurantId = restaurantRef.id;
 
+    // Create default settings for the restaurant
+    await db.collection("restaurants").doc(restaurantId).collection("settings").doc("config").set({
+      ticket: {
+        kitchenTicketEnabled: true,
+        customerReceiptEnabled: true,
+        autoPrintOnOrder: false,
+        showTVA: true,
+        tvaRate: 20,
+        showCashierName: true,
+        footerMessage: "Merci de votre visite!",
+        kitchenTicketFormat: {
+          showOrderNumber: true,
+          showDateTime: true,
+          showNotes: true,
+          fontSize: "medium",
+        },
+        orderNumberFormat: "sequential",
+      },
+      printer: {
+        vendorId: "0x0000",
+        productId: "0x0000",
+        paperWidth: 48,
+        encoding: "GB18030",
+        autoCut: true,
+      },
+      kitchenDisplay: {
+        fontSize: "large",
+        showCustomerNotes: true,
+        groupByCategory: false,
+        highlightUrgent: true,
+      },
+      notifications: {
+        soundEnabled: true,
+        soundVolume: 80,
+      },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      updatedBy: request.auth.uid,
+    });
+
     // Create admin user if provided
     if (adminUser && adminUser.username && adminUser.password && adminUser.name) {
       // Hash password

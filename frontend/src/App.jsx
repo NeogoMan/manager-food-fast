@@ -4,6 +4,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import { SidebarProvider, useSidebar } from './contexts/SidebarContext';
+import { SettingsProvider } from './contexts/SettingsContext';
 import Sidebar from './components/Sidebar';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
@@ -78,10 +79,11 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <SidebarProvider>
-          <CartProvider>
-            {/* Offline Banner */}
-          {!isOnline && (
+        <SettingsProvider>
+          <SidebarProvider>
+            <CartProvider>
+              {/* Offline Banner */}
+            {!isOnline && (
             <div
               style={{
                 position: 'fixed',
@@ -253,9 +255,10 @@ function App() {
               />
             </Routes>
           </Router>
-          </div>
-          </CartProvider>
-        </SidebarProvider>
+            </div>
+            </CartProvider>
+          </SidebarProvider>
+        </SettingsProvider>
       </AuthProvider>
     </ThemeProvider>
   );
