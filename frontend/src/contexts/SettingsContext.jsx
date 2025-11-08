@@ -65,6 +65,12 @@ export const SettingsProvider = ({ children }) => {
       return;
     }
 
+    if (!user?.uid) {
+      // Wait for user to be fully loaded
+      setLoading(true);
+      return;
+    }
+
     // Reference to settings document
     const settingsRef = doc(db, 'restaurants', restaurantId, 'settings', 'config');
 
@@ -79,13 +85,14 @@ export const SettingsProvider = ({ children }) => {
             setSettings({
               ...defaultSettings,
               ...data,
-              ticket: { ...defaultSettings.ticket, ...data.ticket },
-              printer: { ...defaultSettings.printer, ...data.printer },
-              kitchenDisplay: { ...defaultSettings.kitchenDisplay, ...data.kitchenDisplay },
-              notifications: { ...defaultSettings.notifications, ...data.notifications }
+              ticket: { ...defaultSettings.ticket, ...(data.ticket || {}) },
+              printer: { ...defaultSettings.printer, ...(data.printer || {}) },
+              kitchenDisplay: { ...defaultSettings.kitchenDisplay, ...(data.kitchenDisplay || {}) },
+              notifications: { ...defaultSettings.notifications, ...(data.notifications || {}) }
             });
           } else {
             // Create default settings if they don't exist
+            console.log('Creating default settings for restaurant:', restaurantId);
             await setDoc(settingsRef, {
               ...defaultSettings,
               createdAt: new Date(),

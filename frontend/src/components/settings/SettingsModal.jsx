@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useSettings } from '../../contexts/SettingsContext';
 import TicketSettings from './TicketSettings';
 import KitchenDisplaySettings from './KitchenDisplaySettings';
 import NotificationSettings from './NotificationSettings';
 
 const SettingsModal = ({ isOpen, onClose }) => {
   const { user } = useAuth();
-  const { loading: settingsLoading } = useSettings();
   const [activeTab, setActiveTab] = useState('ticket');
 
   // Determine access level based on role
