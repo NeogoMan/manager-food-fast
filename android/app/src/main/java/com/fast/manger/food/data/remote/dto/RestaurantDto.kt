@@ -13,6 +13,7 @@ data class RestaurantDto(
     val phone: String? = null,
     val status: String = "",
     val plan: String = "",
+    val acceptingOrders: Boolean = true,
     val branding: BrandingDto? = null
 )
 
@@ -37,6 +38,7 @@ fun RestaurantDto.toDomain(): Restaurant {
         email = email,
         phone = phone,
         status = status,
-        plan = plan
+        plan = plan,
+        acceptingOrders = acceptingOrders
     )
 }

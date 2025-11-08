@@ -22,7 +22,8 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 class PlaceOrderUseCase @Inject constructor(
     private val orderRepository: OrderRepository,
     private val cartRepository: CartRepository,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val restaurantRepository: com.fast.manger.food.domain.repository.RestaurantRepository
 ) {
     /**
      * Extract restaurantId from Firebase Auth token claims
@@ -76,6 +77,21 @@ class PlaceOrderUseCase @Inject constructor(
             if (restaurantId == null) {
                 android.util.Log.e("PlaceOrderUseCase", "❌ RestaurantId is NULL - cannot create order")
                 return Result.Error(Exception("Restaurant non identifié"))
+            }
+
+            // Check if restaurant is accepting orders
+            android.util.Log.d("PlaceOrderUseCase", "🔍 Checking if restaurant is accepting orders...")
+            val restaurantSettingsResult = restaurantRepository.getRestaurantSettings(restaurantId)
+            if (restaurantSettingsResult.isSuccess) {
+                val restaurant = restaurantSettingsResult.getOrNull()
+                if (restaurant != null && !restaurant.acceptingOrders) {
+                    android.util.Log.w("PlaceOrderUseCase", "⏸ Restaurant is NOT accepting orders")
+                    return Result.Error(Exception("Le restaurant n'accepte pas de commandes pour le moment. Veuillez réessayer plus tard."))
+                }
+                android.util.Log.d("PlaceOrderUseCase", "✅ Restaurant is accepting orders")
+            } else {
+                android.util.Log.e("PlaceOrderUseCase", "❌ Failed to check restaurant settings: ${restaurantSettingsResult.exceptionOrNull()?.message}")
+                return Result.Error(Exception("Impossible de vérifier le statut du restaurant"))
             }
 
             // Get cart items

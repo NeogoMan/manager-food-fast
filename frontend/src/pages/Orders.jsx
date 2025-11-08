@@ -6,6 +6,7 @@ import ApprovalNotification from '../components/ApprovalNotification';
 import PrinterConnection from '../components/PrinterConnection';
 import PrinterStatus from '../components/PrinterStatus';
 import { menuService, ordersService, usersService } from '../services/firestore';
+import { toggleRestaurantOrders, getRestaurantSettings } from '../services/restaurantService';
 import { formatMAD } from '../utils/currency';
 import { orders, status, actions, form, errors, loading, approval } from '../utils/translations';
 import { useAuth } from '../contexts/AuthContext';
@@ -52,10 +53,23 @@ export default function Orders() {
   // Status filter state
   const [selectedStatus, setSelectedStatus] = useState('all');
 
+  // Restaurant settings state
+  const [restaurantId, setRestaurantId] = useState(null);
+  const [acceptingOrders, setAcceptingOrders] = useState(true);
+  const [isTogglingOrders, setIsTogglingOrders] = useState(false);
+
   // Order form state
   const [customerName, setCustomerName] = useState('');
   const [notes, setNotes] = useState('');
   const [orderItems, setOrderItems] = useState([]);
+
+  // Edit order modal state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState(null);
+  const [editCustomerName, setEditCustomerName] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editOrderItems, setEditOrderItems] = useState([]);
+  const [isUpdatingOrder, setIsUpdatingOrder] = useState(false);
 
   // Setup real-time listeners for orders
   useEffect(() => {
@@ -168,6 +182,59 @@ export default function Orders() {
       }
     }
     loadUsers();
+  }, [authLoading, user]);
+
+  // Subscribe to restaurant settings for real-time updates
+  useEffect(() => {
+    if (authLoading || !user) {
+      return;
+    }
+
+    async function setupRestaurantListener() {
+      try {
+        const auth = await import('../config/firebase').then(m => m.auth);
+        const idTokenResult = await auth.currentUser.getIdTokenResult();
+        const resId = idTokenResult.claims.restaurantId;
+
+        if (!resId) return null;
+
+        setRestaurantId(resId);
+
+        // Set up real-time listener for restaurant document
+        const { doc, onSnapshot } = await import('firebase/firestore');
+        const { db } = await import('../config/firebase');
+
+        const unsubscribe = onSnapshot(
+          doc(db, 'restaurants', resId),
+          (snapshot) => {
+            if (snapshot.exists()) {
+              const data = snapshot.data();
+              setAcceptingOrders(data.acceptingOrders !== false); // Default to true if not set
+            }
+          },
+          (error) => {
+            console.error('Error listening to restaurant settings:', error);
+          }
+        );
+
+        return unsubscribe;
+      } catch (error) {
+        console.error('Error setting up restaurant listener:', error);
+        return null;
+      }
+    }
+
+    let unsubscribe = null;
+    setupRestaurantListener().then(unsub => {
+      unsubscribe = unsub;
+    });
+
+    // Cleanup listener on unmount
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [authLoading, user]);
 
   // Check printer status on mount and update periodically
@@ -423,6 +490,138 @@ export default function Orders() {
       // Real-time listener will automatically update both lists
     } catch (error) {
       alert('Erreur lors du refus: ' + error.message);
+    }
+  }
+
+  // Toggle restaurant order acceptance
+  async function handleToggleOrders() {
+    if (!restaurantId) {
+      alert('Restaurant ID not found');
+      return;
+    }
+
+    setIsTogglingOrders(true);
+    try {
+      const newStatus = !acceptingOrders;
+      await toggleRestaurantOrders(restaurantId, newStatus);
+      setAcceptingOrders(newStatus);
+
+      const message = newStatus
+        ? '✓ Le restaurant accepte maintenant les commandes'
+        : '⏸ Le restaurant n\'accepte plus les commandes';
+      alert(message);
+    } catch (error) {
+      alert('Erreur lors de la mise à jour: ' + error.message);
+    } finally {
+      setIsTogglingOrders(false);
+    }
+  }
+
+  // Check if an order can be edited
+  function canEditOrder(order) {
+    // Cannot edit client orders (from Android app)
+    if (order.userId) return false;
+
+    // Cannot edit completed, cancelled, or rejected orders
+    const nonEditableStatuses = ['completed', 'cancelled', 'rejected'];
+    if (nonEditableStatuses.includes(order.status)) return false;
+
+    // Cannot edit paid orders
+    if (order.paymentStatus === 'paid') return false;
+
+    // Only cashiers and managers can edit
+    if (user?.role !== 'cashier' && user?.role !== 'manager') return false;
+
+    return true;
+  }
+
+  // Open edit order modal
+  async function openEditOrderModal(orderId) {
+    try {
+      const order = await ordersService.getById(orderId);
+
+      if (!canEditOrder(order)) {
+        alert('Cette commande ne peut pas être modifiée.');
+        return;
+      }
+
+      setEditingOrder(order);
+      setEditCustomerName(order.customerName || '');
+      setEditNotes(order.notes || '');
+      setEditOrderItems(order.items.map(item => ({
+        menuItemId: item.menuItemId,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        notes: item.notes || ''
+      })));
+      setIsEditModalOpen(true);
+    } catch (error) {
+      alert('Erreur lors du chargement de la commande: ' + error.message);
+    }
+  }
+
+  // Update edit item quantity
+  function updateEditItemQuantity(index, newQuantity) {
+    if (newQuantity < 1) {
+      // Remove item if quantity is 0
+      setEditOrderItems(prev => prev.filter((_, i) => i !== index));
+    } else {
+      setEditOrderItems(prev => prev.map((item, i) =>
+        i === index ? { ...item, quantity: newQuantity } : item
+      ));
+    }
+  }
+
+  // Add menu item to edit order
+  function addMenuItemToEditOrder(menuItem) {
+    const existingIndex = editOrderItems.findIndex(item => item.menuItemId === menuItem.id);
+
+    if (existingIndex >= 0) {
+      // Item already exists, increase quantity
+      updateEditItemQuantity(existingIndex, editOrderItems[existingIndex].quantity + 1);
+    } else {
+      // Add new item
+      setEditOrderItems(prev => [...prev, {
+        menuItemId: menuItem.id,
+        name: menuItem.name,
+        price: menuItem.price,
+        quantity: 1,
+        notes: ''
+      }]);
+    }
+  }
+
+  // Calculate edit order total
+  function getEditOrderTotal() {
+    return editOrderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  }
+
+  // Save edited order
+  async function handleSaveEditedOrder() {
+    if (editOrderItems.length === 0) {
+      alert('La commande doit contenir au moins un article');
+      return;
+    }
+
+    setIsUpdatingOrder(true);
+    try {
+      await ordersService.updateOrder(editingOrder.id, {
+        items: editOrderItems,
+        customerName: editCustomerName.trim() || null,
+        notes: editNotes.trim() || null,
+      });
+
+      alert('✓ Commande modifiée avec succès!');
+      setIsEditModalOpen(false);
+      setEditingOrder(null);
+      setEditOrderItems([]);
+      setEditCustomerName('');
+      setEditNotes('');
+    } catch (error) {
+      alert('Erreur lors de la modification: ' + error.message);
+    } finally {
+      setIsUpdatingOrder(false);
     }
   }
 
@@ -771,6 +970,40 @@ export default function Orders() {
           {orders.title}
         </h1>
         <div className="flex flex-col gap-3 items-end">
+          {/* Order Acceptance Toggle (Manager and Cashier only) */}
+          {(user?.role === 'manager' || user?.role === 'cashier') && (
+            <div
+              className="flex items-center gap-3 px-4 py-2 rounded-lg"
+              style={{
+                backgroundColor: acceptingOrders ? '#dcfce7' : '#fee2e2',
+                border: `2px solid ${acceptingOrders ? '#22c55e' : '#ef4444'}`
+              }}
+            >
+              <span
+                className="text-sm font-medium"
+                style={{ color: acceptingOrders ? '#15803d' : '#b91c1c' }}
+              >
+                {acceptingOrders ? '✓ Accepte les commandes' : '⏸ Commandes pausées'}
+              </span>
+              <button
+                onClick={handleToggleOrders}
+                disabled={isTogglingOrders}
+                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2"
+                style={{
+                  backgroundColor: acceptingOrders ? '#22c55e' : '#ef4444',
+                  cursor: isTogglingOrders ? 'not-allowed' : 'pointer',
+                  opacity: isTogglingOrders ? 0.5 : 1
+                }}
+              >
+                <span
+                  className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                  style={{
+                    transform: acceptingOrders ? 'translateX(1.5rem)' : 'translateX(0.25rem)'
+                  }}
+                />
+              </button>
+            </div>
+          )}
           {/* Printer Connection & Status (Manager and Cashier only) */}
           {(user?.role === 'manager' || user?.role === 'cashier') && (
             <div className="flex items-center gap-2 relative">
@@ -901,6 +1134,20 @@ export default function Orders() {
                       style={{ backgroundColor: '#f59e0b', color: 'white', border: 'none' }}
                     >
                       💰 Paiement
+                    </Button>
+                  )}
+                  {/* Edit button - only for editable orders */}
+                  {canEditOrder(order) && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditOrderModal(order.id);
+                      }}
+                      style={{ backgroundColor: '#3b82f6', color: 'white', border: 'none' }}
+                    >
+                      ✏️ Modifier
                     </Button>
                   )}
                   {/* Print button for managers and cashiers */}
@@ -1100,6 +1347,204 @@ export default function Orders() {
             </div>
           </div>
         </form>
+      </Modal>
+
+      {/* Edit Order Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingOrder(null);
+          setEditOrderItems([]);
+          setEditCustomerName('');
+          setEditNotes('');
+        }}
+        title={`Modifier la commande ${editingOrder?.orderNumber || ''}`}
+        size="lg"
+      >
+        <div className="grid grid-cols-2 gap-8">
+          {/* Menu Items */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
+              Ajouter des articles
+            </h3>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {menuItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex justify-between items-center p-3 rounded-lg cursor-pointer"
+                  style={{
+                    border: '1px solid var(--border-color)',
+                    backgroundColor: 'var(--bg-primary)'
+                  }}
+                  onClick={() => addMenuItemToEditOrder(item)}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
+                >
+                  <div>
+                    <p className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                      {item.name}
+                    </p>
+                    <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
+                      {formatMAD(item.price)}
+                    </p>
+                  </div>
+                  <span className="text-2xl">+</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Edit Order Summary */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
+              Détails de la commande
+            </h3>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+                Nom du client (optionnel)
+              </label>
+              <input
+                type="text"
+                value={editCustomerName}
+                onChange={(e) => setEditCustomerName(e.target.value)}
+                className="w-full px-3 py-2 border rounded"
+                style={{
+                  borderColor: 'var(--border-color)',
+                  backgroundColor: 'var(--bg-primary)',
+                  color: 'var(--text-primary)'
+                }}
+                placeholder="Nom du client..."
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+                Notes (optionnel)
+              </label>
+              <textarea
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                className="w-full px-3 py-2 border rounded resize-none"
+                style={{
+                  borderColor: 'var(--border-color)',
+                  backgroundColor: 'var(--bg-primary)',
+                  color: 'var(--text-primary)'
+                }}
+                rows={3}
+                placeholder="Instructions spéciales..."
+                maxLength={500}
+              />
+            </div>
+
+            {editOrderItems.length > 0 ? (
+              <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
+                {editOrderItems.map((item, index) => (
+                  <div
+                    key={`${item.menuItemId}-${index}`}
+                    className="flex justify-between items-center p-2 rounded"
+                    style={{ backgroundColor: 'var(--bg-secondary)' }}
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
+                        {item.name}
+                      </p>
+                      <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                        {formatMAD(item.price)} × {item.quantity} = {formatMAD(item.price * item.quantity)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updateEditItemQuantity(index, item.quantity - 1)}
+                        className="w-6 h-6 rounded text-sm font-bold"
+                        style={{
+                          backgroundColor: 'var(--bg-primary)',
+                          color: 'var(--text-primary)',
+                          border: '1px solid var(--border-color)'
+                        }}
+                      >
+                        -
+                      </button>
+                      <span className="w-8 text-center" style={{ color: 'var(--text-primary)' }}>
+                        {item.quantity}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateEditItemQuantity(index, item.quantity + 1)}
+                        className="w-6 h-6 rounded text-sm font-bold"
+                        style={{
+                          backgroundColor: 'var(--bg-primary)',
+                          color: 'var(--text-primary)',
+                          border: '1px solid var(--border-color)'
+                        }}
+                      >
+                        +
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateEditItemQuantity(index, 0)}
+                        className="w-6 h-6 rounded text-sm font-bold"
+                        style={{
+                          backgroundColor: '#ef4444',
+                          color: 'white'
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center py-8 text-sm" style={{ color: 'var(--text-tertiary)' }}>
+                Aucun article sélectionné
+              </p>
+            )}
+
+            <div style={{ borderTop: '1px solid var(--border-color)' }} className="pt-4">
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  Total:
+                </span>
+                <span className="text-2xl font-bold text-primary-600">
+                  {formatMAD(getEditOrderTotal())}
+                </span>
+              </div>
+
+              <div className="text-xs mb-4 p-2 rounded" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>
+                ℹ️ Les prix sont verrouillés au prix actuel du menu
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setIsEditModalOpen(false);
+                    setEditingOrder(null);
+                    setEditOrderItems([]);
+                    setEditCustomerName('');
+                    setEditNotes('');
+                  }}
+                  className="flex-1"
+                  disabled={isUpdatingOrder}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleSaveEditedOrder}
+                  className="flex-1"
+                  disabled={isUpdatingOrder || editOrderItems.length === 0}
+                >
+                  {isUpdatingOrder ? 'Modification...' : 'Enregistrer'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       </Modal>
 
       {/* Order Details Modal */}

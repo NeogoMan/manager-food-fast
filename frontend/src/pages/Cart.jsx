@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { ordersService } from '../services/firestore';
+import { getRestaurantSettings } from '../services/restaurantService';
 import { client, actions, orders } from '../utils/translations';
 import Button from '../components/Button';
 import Toast from '../components/Toast';
@@ -49,6 +50,14 @@ export default function Cart() {
 
       if (!restaurantId) {
         throw new Error('No restaurantId found in auth token');
+      }
+
+      // Check if restaurant is accepting orders
+      const restaurantSettings = await getRestaurantSettings(restaurantId);
+      if (restaurantSettings.acceptingOrders === false) {
+        showToast('Le restaurant n\'accepte pas de commandes pour le moment. Veuillez réessayer plus tard.', 'error');
+        setLoading(false);
+        return;
       }
 
       // Calculate total

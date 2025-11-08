@@ -126,4 +126,32 @@ class RestaurantRepositoryImpl @Inject constructor(
             Result.failure(Exception("Failed to fetch restaurants: ${e.message}"))
         }
     }
+
+    override suspend fun getRestaurantSettings(restaurantId: String): Result<Restaurant> {
+        return try {
+            val snapshot = firestore.collection("restaurants")
+                .document(restaurantId)
+                .get()
+                .await()
+
+            if (!snapshot.exists()) {
+                return Result.failure(Exception("Restaurant not found"))
+            }
+
+            val restaurant = RestaurantDto(
+                id = snapshot.id,
+                name = snapshot.getString("name") ?: "",
+                shortCode = snapshot.getString("shortCode") ?: "",
+                email = snapshot.getString("email"),
+                phone = snapshot.getString("phone"),
+                status = snapshot.getString("status") ?: "",
+                plan = snapshot.getString("plan") ?: "",
+                acceptingOrders = snapshot.getBoolean("acceptingOrders") ?: true
+            ).toDomain()
+
+            Result.success(restaurant)
+        } catch (e: Exception) {
+            Result.failure(Exception("Failed to fetch restaurant settings: ${e.message}"))
+        }
+    }
 }

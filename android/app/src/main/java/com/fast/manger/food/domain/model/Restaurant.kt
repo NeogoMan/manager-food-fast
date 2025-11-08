@@ -10,5 +10,6 @@ data class Restaurant(
     val email: String?,
     val phone: String?,
     val status: String,
-    val plan: String
+    val plan: String,
+    val acceptingOrders: Boolean = true
 )

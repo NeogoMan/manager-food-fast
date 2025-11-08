@@ -351,6 +351,23 @@ export const ordersService = {
     return { id, ...updates };
   },
 
+  // Update order (items, quantities, notes, customer name)
+  // Secure: Prices locked to menu, cannot edit client orders, full audit trail
+  async updateOrder(orderId, orderData) {
+    const { getFunctions, httpsCallable } = await import('firebase/functions');
+    const functions = getFunctions();
+    const updateOrderFn = httpsCallable(functions, 'updateOrder');
+
+    const result = await updateOrderFn({
+      orderId,
+      items: orderData.items,
+      customerName: orderData.customerName,
+      notes: orderData.notes,
+    });
+
+    return result.data;
+  },
+
   // Record payment for an order
   async recordPayment(id, paymentData) {
     const docRef = doc(db, 'orders', id);

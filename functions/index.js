@@ -11,7 +11,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {onDocumentUpdated} from "firebase-functions/v2/firestore";
 import {initializeApp} from "firebase-admin/app";
 import {getAuth} from "firebase-admin/auth";
-import {getFirestore} from "firebase-admin/firestore";
+import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import {getMessaging} from "firebase-admin/messaging";
 import bcrypt from "bcrypt";
 
@@ -1604,6 +1604,237 @@ export const suspendRestaurant = onCall(async (request) => {
     }
 
     throw new HttpsError("internal", "Failed to update restaurant status");
+  }
+});
+
+/**
+ * Cloud Function: toggleRestaurantOrders
+ * Toggles whether a restaurant accepts orders from mobile app
+ * Can be called by super admin or restaurant staff (manager/cashier)
+ */
+export const toggleRestaurantOrders = onCall(async (request) => {
+  // Require authentication
+  if (!request.auth) {
+    throw new HttpsError(
+        "unauthenticated",
+        "You must be logged in to toggle restaurant orders",
+    );
+  }
+
+  const {restaurantId, acceptingOrders} = request.data;
+
+  // Validate input
+  if (!restaurantId || typeof acceptingOrders !== "boolean") {
+    throw new HttpsError(
+        "invalid-argument",
+        "Restaurant ID and acceptingOrders (boolean) are required",
+    );
+  }
+
+  try {
+    // Check permissions: super admin OR staff of the target restaurant
+    const isSuperAdmin = request.auth.token.isSuperAdmin;
+    const userRestaurantId = await getRestaurantIdFromAuth(request);
+
+    if (!isSuperAdmin && userRestaurantId !== restaurantId) {
+      throw new HttpsError(
+          "permission-denied",
+          "You can only toggle orders for your own restaurant",
+      );
+    }
+
+    // Verify restaurant exists
+    const restaurantDoc = await db.collection("restaurants").doc(restaurantId).get();
+
+    if (!restaurantDoc.exists) {
+      throw new HttpsError("not-found", "Restaurant not found");
+    }
+
+    // Update restaurant order acceptance status
+    await db.collection("restaurants").doc(restaurantId).update({
+      acceptingOrders,
+      updatedAt: new Date(),
+      updatedBy: request.auth.uid,
+    });
+
+    return {
+      success: true,
+      message: acceptingOrders ?
+        "Restaurant is now accepting orders" :
+        "Restaurant has stopped accepting orders",
+      acceptingOrders,
+    };
+  } catch (error) {
+    console.error("Toggle restaurant orders error:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError("internal", "Failed to toggle restaurant orders");
+  }
+});
+
+/**
+ * Cloud Function: updateOrder
+ * Securely updates an order (items, quantities, notes, customer name)
+ * Security: Prices ALWAYS locked to menu, cannot edit client orders, audit trail
+ * Only cashiers/managers can edit staff-created orders (userId = null)
+ */
+export const updateOrder = onCall(async (request) => {
+  // Require authentication
+  if (!request.auth) {
+    throw new HttpsError(
+        "unauthenticated",
+        "You must be logged in to update orders",
+    );
+  }
+
+  const {orderId, items, customerName, notes} = request.data;
+
+  // Validate input
+  if (!orderId) {
+    throw new HttpsError("invalid-argument", "Order ID is required");
+  }
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    throw new HttpsError("invalid-argument", "Order must have at least one item");
+  }
+
+  try {
+    // Get user's restaurant ID
+    const userRestaurantId = await getRestaurantIdFromAuth(request);
+    if (!userRestaurantId) {
+      throw new HttpsError("permission-denied", "User must belong to a restaurant");
+    }
+
+    // Check user role (must be cashier or manager)
+    const userRole = request.auth.token.role;
+    if (userRole !== "cashier" && userRole !== "manager") {
+      throw new HttpsError("permission-denied", "Only cashiers and managers can edit orders");
+    }
+
+    // Get the order
+    const orderDoc = await db.collection("orders").doc(orderId).get();
+    if (!orderDoc.exists) {
+      throw new HttpsError("not-found", "Order not found");
+    }
+
+    const order = orderDoc.data();
+
+    // SECURITY CHECK 1: Verify order belongs to user's restaurant
+    if (order.restaurantId !== userRestaurantId) {
+      throw new HttpsError("permission-denied", "Order belongs to a different restaurant");
+    }
+
+    // SECURITY CHECK 2: Cannot edit client orders (orders from Android app)
+    if (order.userId) {
+      throw new HttpsError(
+          "permission-denied",
+          "Cannot edit client orders. Only staff-created orders can be edited.",
+      );
+    }
+
+    // SECURITY CHECK 3: Can only edit active, unpaid orders
+    const nonEditableStatuses = ["completed", "cancelled", "rejected"];
+    if (nonEditableStatuses.includes(order.status)) {
+      throw new HttpsError(
+          "permission-denied",
+          `Cannot edit ${order.status} orders`,
+      );
+    }
+
+    if (order.paymentStatus === "paid") {
+      throw new HttpsError("permission-denied", "Cannot edit paid orders");
+    }
+
+    // Fetch menu items to get current prices (SECURITY: Always use menu prices)
+    const menuItemIds = items.map((item) => item.menuItemId);
+    const menuDocs = await db.collection("menu")
+        .where("__name__", "in", menuItemIds)
+        .where("restaurantId", "==", userRestaurantId)
+        .get();
+
+    const menuPrices = {};
+    const menuNames = {};
+    menuDocs.forEach((doc) => {
+      const menuItem = doc.data();
+      menuPrices[doc.id] = menuItem.price;
+      menuNames[doc.id] = menuItem.name;
+    });
+
+    // Validate all items exist in menu
+    for (const item of items) {
+      if (!menuPrices[item.menuItemId]) {
+        throw new HttpsError(
+            "invalid-argument",
+            `Menu item ${item.menuItemId} not found in restaurant menu`,
+        );
+      }
+      if (item.quantity <= 0) {
+        throw new HttpsError("invalid-argument", "Item quantity must be greater than 0");
+      }
+    }
+
+    // Build updated items with LOCKED prices from menu
+    const updatedItems = items.map((item) => ({
+      menuItemId: item.menuItemId,
+      name: menuNames[item.menuItemId],
+      price: menuPrices[item.menuItemId], // ALWAYS use current menu price
+      quantity: item.quantity,
+      notes: item.notes || null,
+    }));
+
+    // Recalculate total amount
+    const totalAmount = updatedItems.reduce((sum, item) => {
+      return sum + (item.price * item.quantity);
+    }, 0);
+
+    const itemCount = updatedItems.reduce((sum, item) => sum + item.quantity, 0);
+
+    // Build edit history entry
+    const editEntry = {
+      editedBy: request.auth.uid,
+      editedByName: request.auth.token.name || "Unknown",
+      editedAt: new Date(),
+      previousItems: order.items,
+      previousTotal: order.totalAmount,
+      previousCustomerName: order.customerName,
+      previousNotes: order.notes,
+    };
+
+    // Prepare update data
+    const updateData = {
+      items: updatedItems,
+      totalAmount,
+      itemCount,
+      customerName: customerName || null,
+      notes: notes ? notes.trim() : null,
+      editedBy: request.auth.uid,
+      editedByName: request.auth.token.name || "Unknown",
+      editedAt: new Date(),
+      editHistory: FieldValue.arrayUnion(editEntry),
+      updatedAt: new Date(),
+    };
+
+    // Update the order
+    await db.collection("orders").doc(orderId).update(updateData);
+
+    return {
+      success: true,
+      message: "Order updated successfully",
+      orderId,
+      totalAmount,
+      itemCount,
+    };
+  } catch (error) {
+    console.error("Update order error:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError("internal", "Failed to update order: " + error.message);
   }
 });
 

@@ -21,6 +21,9 @@ data class Order(
     val paymentTime: Long? = null,
     val paymentMethod: String? = null,
     val rejectionReason: String? = null,
+    val editedBy: String? = null,
+    val editedByName: String? = null,
+    val editedAt: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 ) {

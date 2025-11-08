@@ -9,6 +9,16 @@ import { kitchen, status, actions, errors, loading, orders as ordersTranslations
 import { createAudioPlayer } from '../utils/audioNotification';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+} from '@dnd-kit/core';
+import { useDraggable, useDroppable } from '@dnd-kit/core';
 
 export default function Kitchen() {
   const navigate = useNavigate();
@@ -24,6 +34,12 @@ export default function Kitchen() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [expandedOrders, setExpandedOrders] = useState(new Set());
+  const [activeId, setActiveId] = useState(null);
+  const [showActionButtons, setShowActionButtons] = useState(() => {
+    // Load preference from localStorage, default to false (hidden)
+    const saved = localStorage.getItem('kitchenShowButtons');
+    return saved === 'true';
+  });
 
   const audioRef = useRef(null);
   const toastIdCounter = useRef(0);
@@ -89,6 +105,15 @@ export default function Kitchen() {
       enterFullscreen();
     }
   }, [isFullscreen, enterFullscreen, exitFullscreen]);
+
+  // Toggle action buttons visibility
+  const toggleActionButtons = useCallback(() => {
+    setShowActionButtons((prev) => {
+      const newValue = !prev;
+      localStorage.setItem('kitchenShowButtons', newValue.toString());
+      return newValue;
+    });
+  }, []);
 
   // Listen for fullscreen changes
   useEffect(() => {
@@ -332,6 +357,125 @@ export default function Kitchen() {
     });
   }
 
+  // Drag-and-drop sensors configuration
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px movement before drag starts (prevents accidental drags)
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250, // 250ms press delay for touch devices (prevents accidental drags while scrolling)
+        tolerance: 5, // Allow 5px of movement during the delay
+      },
+    })
+  );
+
+  // Validate if state transition is allowed
+  function isValidTransition(fromStatus, toStatus) {
+    const validTransitions = {
+      pending: ['preparing'],
+      preparing: ['ready', 'pending'],
+      ready: ['preparing'], // Can move back to preparing, cashier handles completion separately
+    };
+    return validTransitions[fromStatus]?.includes(toStatus) || false;
+  }
+
+  // Handle drag start
+  function handleDragStart(event) {
+    setActiveId(event.active.id);
+  }
+
+  // Handle drag end
+  async function handleDragEnd(event) {
+    const { active, over } = event;
+    setActiveId(null);
+
+    if (!over) return;
+
+    const orderId = active.id;
+    const newStatus = over.id; // Column IDs are status values ('pending', 'preparing', 'ready')
+
+    // Find the order being dragged
+    const order = ordersList.find((o) => o.id === orderId);
+    if (!order) return;
+
+    const oldStatus = order.status;
+
+    // If dropped in same column, do nothing
+    if (oldStatus === newStatus) return;
+
+    // Validate transition
+    if (!isValidTransition(oldStatus, newStatus)) {
+      showToast(
+        `❌ Transition invalide: Impossible de passer de "${getStatusLabel(oldStatus)}" à "${getStatusLabel(newStatus)}"`,
+        'error',
+        4000
+      );
+      return;
+    }
+
+    // Update order status
+    try {
+      await updateOrderStatus(orderId, newStatus);
+      showToast(
+        `✅ Commande ${order.orderNumber} déplacée vers "${getStatusLabel(newStatus)}"`,
+        'success',
+        3000
+      );
+    } catch (error) {
+      showToast(
+        `❌ Échec de la mise à jour: ${error.message}`,
+        'error',
+        4000
+      );
+    }
+  }
+
+  // Droppable Column Component
+  function DroppableColumn({ id, children }) {
+    const { setNodeRef, isOver } = useDroppable({ id });
+
+    return (
+      <div
+        ref={setNodeRef}
+        className="flex flex-col gap-2"
+        style={{
+          backgroundColor: isOver ? 'rgba(59, 130, 246, 0.05)' : 'transparent',
+          transition: 'background-color 0.2s',
+          borderRadius: '8px',
+        }}
+      >
+        {children}
+      </div>
+    );
+  }
+
+  // Draggable Order Card Wrapper Component
+  function DraggableOrderCard({ id, children, disabled }) {
+    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+      id,
+      disabled,
+    });
+
+    const style = {
+      transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+      opacity: isDragging ? 0.5 : 1,
+      cursor: disabled ? 'default' : 'grab',
+      transition: 'opacity 0.2s',
+      touchAction: 'none', // Prevent default touch actions (scrolling) during drag
+      WebkitUserSelect: 'none', // Prevent text selection on touch devices
+      userSelect: 'none',
+    };
+
+    return (
+      <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
+        {children}
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -435,6 +579,15 @@ export default function Kitchen() {
           >
             {isFullscreen ? '⊗' : '⛶'}
           </button>
+          {/* Action Buttons Toggle */}
+          <button
+            onClick={toggleActionButtons}
+            className="px-3 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-lg"
+            style={{ color: 'var(--text-primary)' }}
+            title={showActionButtons ? 'Masquer les boutons' : 'Afficher les boutons'}
+          >
+            {showActionButtons ? '👆' : '🎯'}
+          </button>
           {/* Logout Button */}
           <button
             onClick={handleLogoutClick}
@@ -454,11 +607,18 @@ export default function Kitchen() {
         className="overflow-y-auto p-2 md:p-4"
         style={{ flex: 1 }}
       >
-        {/* Grid Container for Landscape Tablets - 2-3 columns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+        {/* Drag and Drop Context */}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          {/* Grid Container for Landscape Tablets - 2-3 columns */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
 
           {/* Pending Section */}
-          <div className="flex flex-col gap-2">
+          <DroppableColumn id="pending">
             <div
               className="sticky top-0 z-10 rounded-lg px-4 py-3 border-l-4"
               style={{
@@ -477,17 +637,17 @@ export default function Kitchen() {
               const isExpanded = expandedOrders.has(order.id);
 
               return (
-                <div
-                  key={order.id}
-                  className={`border-3 rounded-xl overflow-hidden transition-all ${
-                    urgency.level === 'critical' ? 'animate-pulse' : ''
-                  }`}
-                  style={{
-                    borderColor: urgency.level === 'critical' ? '#ef4444' : urgency.level === 'urgent' ? '#f59e0b' : 'var(--border-color)',
-                    backgroundColor: 'var(--bg-primary)',
-                    boxShadow: urgency.level === 'critical' ? '0 0 20px rgba(239, 68, 68, 0.3)' : '0 2px 4px rgba(0,0,0,0.1)'
-                  }}
-                >
+                <DraggableOrderCard key={order.id} id={order.id} disabled={false}>
+                  <div
+                    className={`border-3 rounded-xl overflow-hidden transition-all ${
+                      urgency.level === 'critical' ? 'animate-pulse' : ''
+                    }`}
+                    style={{
+                      borderColor: urgency.level === 'critical' ? '#ef4444' : urgency.level === 'urgent' ? '#f59e0b' : 'var(--border-color)',
+                      backgroundColor: 'var(--bg-primary)',
+                      boxShadow: urgency.level === 'critical' ? '0 0 20px rgba(239, 68, 68, 0.3)' : '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                  >
                   {/* Card Header - Always Visible */}
                   <div
                     className="p-4 cursor-pointer"
@@ -596,21 +756,24 @@ export default function Kitchen() {
                     </div>
                   )}
 
-                  {/* Action Button - Always Visible */}
-                  <div className="p-4 pt-0">
-                    <Button
-                      size="lg"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        updateOrderStatus(order.id, 'preparing');
-                      }}
-                      className="w-full text-xl md:text-2xl font-bold"
-                      style={{ minHeight: '64px', fontSize: '1.25rem' }}
-                    >
-                      ▶️ {kitchen.startPreparing}
-                    </Button>
+                  {/* Action Button - Conditionally Visible */}
+                  {showActionButtons && (
+                    <div className="p-4 pt-0">
+                      <Button
+                        size="lg"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateOrderStatus(order.id, 'preparing');
+                        }}
+                        className="w-full text-xl md:text-2xl font-bold"
+                        style={{ minHeight: '64px', fontSize: '1.25rem' }}
+                      >
+                        ▶️ {kitchen.startPreparing}
+                      </Button>
+                    </div>
+                  )}
                   </div>
-                </div>
+                </DraggableOrderCard>
               );
             })}
 
@@ -620,10 +783,10 @@ export default function Kitchen() {
               </p>
             )}
           </div>
-        </div>
+        </DroppableColumn>
 
         {/* Preparing Section */}
-        <div className="flex flex-col gap-2">
+        <DroppableColumn id="preparing">
           <div
             className="sticky top-0 z-10 rounded-lg px-4 py-3 border-l-4"
             style={{
@@ -642,17 +805,17 @@ export default function Kitchen() {
               const isExpanded = expandedOrders.has(order.id);
 
               return (
-                <div
-                  key={order.id}
-                  className={`border-3 rounded-xl overflow-hidden transition-all ${
-                    urgency.level === 'critical' ? 'animate-pulse' : ''
-                  }`}
-                  style={{
-                    borderColor: urgency.level === 'critical' ? '#ef4444' : urgency.level === 'urgent' ? '#f59e0b' : '#3b82f6',
-                    backgroundColor: 'var(--bg-primary)',
-                    boxShadow: urgency.level === 'critical' ? '0 0 20px rgba(239, 68, 68, 0.3)' : '0 2px 4px rgba(59, 130, 246, 0.1)'
-                  }}
-                >
+                <DraggableOrderCard key={order.id} id={order.id} disabled={false}>
+                  <div
+                    className={`border-3 rounded-xl overflow-hidden transition-all ${
+                      urgency.level === 'critical' ? 'animate-pulse' : ''
+                    }`}
+                    style={{
+                      borderColor: urgency.level === 'critical' ? '#ef4444' : urgency.level === 'urgent' ? '#f59e0b' : '#3b82f6',
+                      backgroundColor: 'var(--bg-primary)',
+                      boxShadow: urgency.level === 'critical' ? '0 0 20px rgba(239, 68, 68, 0.3)' : '0 2px 4px rgba(59, 130, 246, 0.1)'
+                    }}
+                  >
                   <div className="p-4 cursor-pointer" onClick={() => toggleOrderExpansion(order.id)}>
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-2">
@@ -744,20 +907,24 @@ export default function Kitchen() {
                     </div>
                   )}
 
-                  <div className="p-4 pt-0">
-                    <Button
-                      size="lg"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        updateOrderStatus(order.id, 'ready');
-                      }}
-                      className="w-full text-xl md:text-2xl font-bold"
-                      style={{ minHeight: '64px', fontSize: '1.25rem', backgroundColor: '#10b981' }}
-                    >
-                      ✅ {kitchen.markReady}
-                    </Button>
+                  {/* Action Button - Conditionally Visible */}
+                  {showActionButtons && (
+                    <div className="p-4 pt-0">
+                      <Button
+                        size="lg"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateOrderStatus(order.id, 'ready');
+                        }}
+                        className="w-full text-xl md:text-2xl font-bold"
+                        style={{ minHeight: '64px', fontSize: '1.25rem', backgroundColor: '#10b981' }}
+                      >
+                        ✅ {kitchen.markReady}
+                      </Button>
+                    </div>
+                  )}
                   </div>
-                </div>
+                </DraggableOrderCard>
               );
             })}
 
@@ -767,10 +934,10 @@ export default function Kitchen() {
               </p>
             )}
           </div>
-        </div>
+        </DroppableColumn>
 
         {/* Ready Section */}
-        <div className="flex flex-col gap-2">
+        <DroppableColumn id="ready">
           <div
             className="sticky top-0 z-10 rounded-lg px-4 py-3 border-l-4"
             style={{
@@ -789,15 +956,15 @@ export default function Kitchen() {
               const isExpanded = expandedOrders.has(order.id);
 
               return (
-                <div
-                  key={order.id}
-                  className="border-3 rounded-xl overflow-hidden"
-                  style={{
-                    borderColor: '#10b981',
-                    backgroundColor: 'var(--bg-primary)',
-                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.2)'
-                  }}
-                >
+                <DraggableOrderCard key={order.id} id={order.id} disabled={false}>
+                  <div
+                    className="border-3 rounded-xl overflow-hidden"
+                    style={{
+                      borderColor: '#10b981',
+                      backgroundColor: 'var(--bg-primary)',
+                      boxShadow: '0 2px 8px rgba(16, 185, 129, 0.2)'
+                    }}
+                  >
                   <div className="p-4 cursor-pointer" onClick={() => toggleOrderExpansion(order.id)}>
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-2">
@@ -889,20 +1056,24 @@ export default function Kitchen() {
                     </div>
                   )}
 
-                  <div className="p-4 pt-0">
-                    <Button
-                      size="lg"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCompleteOrder(order);
-                      }}
-                      className="w-full text-xl md:text-2xl font-bold"
-                      style={{ minHeight: '64px', fontSize: '1.25rem', backgroundColor: '#6366f1' }}
-                    >
-                      📦 {kitchen.completeOrder}
-                    </Button>
+                  {/* Action Button - Conditionally Visible */}
+                  {showActionButtons && (
+                    <div className="p-4 pt-0">
+                      <Button
+                        size="lg"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCompleteOrder(order);
+                        }}
+                        className="w-full text-xl md:text-2xl font-bold"
+                        style={{ minHeight: '64px', fontSize: '1.25rem', backgroundColor: '#6366f1' }}
+                      >
+                        📦 {kitchen.completeOrder}
+                      </Button>
+                    </div>
+                  )}
                   </div>
-                </div>
+                </DraggableOrderCard>
               );
             })}
 
@@ -912,9 +1083,10 @@ export default function Kitchen() {
               </p>
             )}
           </div>
-        </div>
+        </DroppableColumn>
 
-        </div>
+          </div>
+        </DndContext>
       </div>
 
       {/* Order Details Sidebar */}

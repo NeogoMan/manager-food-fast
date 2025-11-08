@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listRestaurants, suspendRestaurant } from '../../services/restaurantService';
+import { listRestaurants, suspendRestaurant, toggleRestaurantOrders } from '../../services/restaurantService';
 
 const Restaurants = () => {
   const navigate = useNavigate();
@@ -33,6 +33,16 @@ const Restaurants = () => {
       await loadRestaurants(); // Reload list
     } catch (err) {
       alert('Failed to update restaurant status');
+    }
+  };
+
+  const handleToggleOrders = async (restaurantId, currentStatus) => {
+    try {
+      const newStatus = !currentStatus;
+      await toggleRestaurantOrders(restaurantId, newStatus);
+      await loadRestaurants(); // Reload list
+    } catch (err) {
+      alert('Failed to toggle order acceptance: ' + err.message);
     }
   };
 
@@ -233,6 +243,39 @@ const Restaurants = () => {
                   <div style={{ fontSize: '12px', color: '#999', marginTop: '8px' }}>
                     📊 {restaurant.usage?.totalOrders || 0} orders • 👥 {restaurant.usage?.activeStaffUsers || 0}{' '}
                     staff
+                  </div>
+                  {/* Order Acceptance Toggle */}
+                  <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: restaurant.acceptingOrders !== false ? '#15803d' : '#b91c1c', fontWeight: 500 }}>
+                      {restaurant.acceptingOrders !== false ? '✓ Accepting Orders' : '⏸ Orders Paused'}
+                    </span>
+                    <button
+                      onClick={() => handleToggleOrders(restaurant.id, restaurant.acceptingOrders !== false)}
+                      style={{
+                        position: 'relative',
+                        display: 'inline-flex',
+                        height: '20px',
+                        width: '36px',
+                        alignItems: 'center',
+                        borderRadius: '10px',
+                        backgroundColor: restaurant.acceptingOrders !== false ? '#22c55e' : '#ef4444',
+                        border: 'none',
+                        cursor: 'pointer',
+                        transition: 'background-color 0.2s',
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          height: '14px',
+                          width: '14px',
+                          borderRadius: '50%',
+                          backgroundColor: 'white',
+                          transition: 'transform 0.2s',
+                          transform: restaurant.acceptingOrders !== false ? 'translateX(19px)' : 'translateX(3px)',
+                        }}
+                      />
+                    </button>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>

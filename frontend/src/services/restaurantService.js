@@ -75,6 +75,46 @@ export const suspendRestaurant = async (restaurantId, status) => {
 };
 
 /**
+ * Toggle restaurant order acceptance
+ * @param {string} restaurantId - Restaurant ID
+ * @param {boolean} acceptingOrders - Whether to accept orders
+ * @returns {Promise<Object>} Update result
+ */
+export const toggleRestaurantOrders = async (restaurantId, acceptingOrders) => {
+  try {
+    const toggleOrdersFn = httpsCallable(functions, 'toggleRestaurantOrders');
+    const result = await toggleOrdersFn({ restaurantId, acceptingOrders });
+    return result.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Get restaurant settings (for checking order acceptance status)
+ * @param {string} restaurantId - Restaurant ID
+ * @returns {Promise<Object>} Restaurant settings
+ */
+export const getRestaurantSettings = async (restaurantId) => {
+  try {
+    const { doc, getDoc } = await import('firebase/firestore');
+    const { db } = await import('../config/firebase');
+    const restaurantDoc = await getDoc(doc(db, 'restaurants', restaurantId));
+
+    if (!restaurantDoc.exists()) {
+      throw new Error('Restaurant not found');
+    }
+
+    return {
+      id: restaurantDoc.id,
+      ...restaurantDoc.data()
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
  * Get plan details and pricing
  * @returns {Array} Available plans with features
  */

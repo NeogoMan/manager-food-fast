@@ -56,4 +56,11 @@ interface RestaurantRepository {
      * @return Result with list of restaurants
      */
     suspend fun getRestaurantsByIds(restaurantIds: List<String>): Result<List<Restaurant>>
+
+    /**
+     * Get restaurant settings by ID
+     * @param restaurantId Restaurant ID
+     * @return Result with Restaurant or error
+     */
+    suspend fun getRestaurantSettings(restaurantId: String): Result<Restaurant>
 }
