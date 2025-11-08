@@ -9,14 +9,7 @@
   "theme_color": "#ef4444",
   "background_color": "#1f2937",
   "categories": ["business", "productivity", "food"],
-  "icons": [
-    {
-      "src": "/vite.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
-  ],
+  "icons": [],
   "prefer_related_applications": false,
   "shortcuts": [
     {
