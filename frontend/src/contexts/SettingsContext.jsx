@@ -65,7 +65,7 @@ export const SettingsProvider = ({ children }) => {
       return;
     }
 
-    if (!user?.uid) {
+    if (!user?.id) {
       // Wait for user to be fully loaded
       setLoading(true);
       return;
@@ -97,7 +97,7 @@ export const SettingsProvider = ({ children }) => {
               ...defaultSettings,
               createdAt: new Date(),
               updatedAt: new Date(),
-              updatedBy: user.uid
+              updatedBy: user.id
             });
             setSettings(defaultSettings);
           }
@@ -117,7 +117,7 @@ export const SettingsProvider = ({ children }) => {
 
     // Cleanup subscription
     return () => unsubscribe();
-  }, [restaurantId, user?.uid]);
+  }, [restaurantId, user?.id]);
 
   // Update settings function
   const updateSettings = async (updates) => {
@@ -126,7 +126,7 @@ export const SettingsProvider = ({ children }) => {
       throw new Error('No restaurant ID available. Please ensure you are logged in.');
     }
 
-    if (!user?.uid) {
+    if (!user?.id) {
       console.error('Cannot update settings: No user ID available');
       throw new Error('No user ID available. Please ensure you are logged in.');
     }
@@ -139,7 +139,7 @@ export const SettingsProvider = ({ children }) => {
         {
           ...updates,
           updatedAt: new Date(),
-          updatedBy: user.uid
+          updatedBy: user.id
         },
         { merge: true }
       );

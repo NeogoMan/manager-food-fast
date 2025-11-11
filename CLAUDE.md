@@ -1,0 +1,1 @@
+- do not include any commit with claude ai mention or email

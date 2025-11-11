@@ -27,16 +27,41 @@ export default function ProtectedRoute({ children, allowedRoles = [] }) {
   }
 
   // Check if user has required role
-  if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-    // Redirect to appropriate page based on user's role
-    const roleRedirects = {
-      manager: '/',
-      cashier: '/menu',
-      cook: '/kitchen',
-      client: '/customer-menu',
-    };
+  if (allowedRoles.length > 0) {
+    // Check if super admin access is required
+    const requiresSuperAdmin = allowedRoles.includes('superAdmin');
 
-    return <Navigate to={roleRedirects[user.role] || '/'} replace />;
+    if (requiresSuperAdmin) {
+      // Super admin route - only allow if user has isSuperAdmin flag
+      if (!user.isSuperAdmin) {
+        // Regular user trying to access admin route - redirect to their home
+        const roleRedirects = {
+          manager: '/',
+          cashier: '/menu',
+          cook: '/kitchen',
+          client: '/customer-menu',
+        };
+        return <Navigate to={roleRedirects[user.role] || '/'} replace />;
+      }
+    } else {
+      // Regular role-based route
+      // If super admin tries to access non-admin route, redirect them to admin
+      if (user.isSuperAdmin) {
+        return <Navigate to="/admin/restaurants" replace />;
+      }
+
+      // Check if user has the required role
+      if (!allowedRoles.includes(user.role)) {
+        // User doesn't have required role - redirect to their home
+        const roleRedirects = {
+          manager: '/',
+          cashier: '/menu',
+          cook: '/kitchen',
+          client: '/customer-menu',
+        };
+        return <Navigate to={roleRedirects[user.role] || '/'} replace />;
+      }
+    }
   }
 
   // User is authenticated and has required role
