@@ -658,7 +658,7 @@ export default function Kitchen() {
                       <div className="flex items-center gap-2">
                         <span className="text-xl md:text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
                           {order.notes && <span className="mr-1">📝</span>}
-                          {order.orderNumber}
+                          #{order.orderNumber || order.id.slice(-6).toUpperCase()}
                         </span>
                       </div>
                       <div
@@ -683,6 +683,15 @@ export default function Kitchen() {
                         </span>
                       )}
                     </div>
+
+                    {/* Order Notes */}
+                    {order.notes && (
+                      <div className="mb-3 p-2 bg-yellow-50 border-l-4 border-yellow-400 rounded">
+                        <div className="text-sm md:text-base font-bold text-yellow-800">
+                          📝 INSTRUCTIONS: {order.notes}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Items Preview (first 3 items) */}
                     <div className="mb-3 space-y-1">
@@ -821,7 +830,7 @@ export default function Kitchen() {
                       <div className="flex items-center gap-2">
                         <span className="text-xl md:text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
                           {order.notes && <span className="mr-1">📝</span>}
-                          {order.orderNumber}
+                          #{order.orderNumber || order.id.slice(-6).toUpperCase()}
                         </span>
                       </div>
                       <div
@@ -970,7 +979,7 @@ export default function Kitchen() {
                       <div className="flex items-center gap-2">
                         <span className="text-xl md:text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
                           {order.notes && <span className="mr-1">📝</span>}
-                          {order.orderNumber}
+                          #{order.orderNumber || order.id.slice(-6).toUpperCase()}
                         </span>
                       </div>
                       <div

@@ -151,9 +151,20 @@ export default function Orders() {
 
     async function loadMenuItems() {
       try {
-        const data = await menuService.getAvailable();
+        // Get restaurantId from JWT token
+        const auth = await import('../config/firebase').then(m => m.auth);
+        const idTokenResult = await auth.currentUser.getIdTokenResult();
+        const restaurantId = idTokenResult.claims.restaurantId;
+
+        if (!restaurantId) {
+          console.error('No restaurantId found in user token');
+          return;
+        }
+
+        const data = await menuService.getAvailable(restaurantId);
         setMenuItems(data);
       } catch (error) {
+        console.error('Failed to load menu items:', error);
       }
     }
     loadMenuItems();
@@ -893,11 +904,17 @@ export default function Orders() {
     return status[statusValue] || statusValue;
   }
 
-  // Get client name (registered user or walk-in customer)
+  // Get client name (registered user, walk-in customer, or guest)
   function getClientName(order) {
+    // Check if it's a guest order (self-service)
+    if (order.isGuestOrder && order.guestName) {
+      return order.guestName;
+    }
+    // Check if it's a registered user
     if (order.userId && usersMap[order.userId]) {
       return usersMap[order.userId].name || usersMap[order.userId].username;
     }
+    // Fallback to customerName or generic "Client"
     return order.customerName || 'Client';
   }
 
@@ -1076,11 +1093,41 @@ export default function Orders() {
                 <div className="flex justify-between items-start mb-2">
                   <div>
                     <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                      {order.orderNumber}
+                      #{order.orderNumber || order.id.slice(-6).toUpperCase()}
                     </h3>
                     <p className="text-lg font-semibold" style={{ color: 'var(--text-secondary)' }}>
                       {getClientName(order)}
+                      {/* Guest Order Badge */}
+                      {order.isGuestOrder && (
+                        <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          🔗 Self-Service
+                        </span>
+                      )}
                     </p>
+                    {/* Guest Order Additional Info */}
+                    {order.isGuestOrder && (
+                      <div className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                        {order.guestPhone && (
+                          <p>📞 {order.guestPhone}</p>
+                        )}
+                        {order.tableNumber && (
+                          <p>🪑 Table {order.tableNumber}</p>
+                        )}
+                        {order.orderType && (
+                          <p>
+                            {order.orderType === 'dine-in' ? '🍽️ Sur place' :
+                             order.orderType === 'takeout' ? '📦 À emporter' :
+                             '🚶 Enlèvement'}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {/* Order Notes */}
+                    {order.notes && (
+                      <p className="text-xs mt-1 italic" style={{ color: 'var(--text-tertiary)' }}>
+                        📝 {order.notes}
+                      </p>
+                    )}
                     <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
                       🕐 {formatOrderTime(order.createdAt)}
                     </p>

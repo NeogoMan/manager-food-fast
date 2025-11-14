@@ -274,9 +274,191 @@ export const removeFCMToken = onCall(async (request) => {
 // ============================================================================
 
 /**
+ * Password validation helper
+ * Returns validation result with specific requirements for user type
+ * @param {string} password - The password to validate
+ * @param {string} userType - The type of user (superAdmin or restaurant)
+ * @return {Object} Validation result with valid flag and message
+ */
+// eslint-disable-next-line no-unused-vars
+function validatePassword(password, userType = "restaurant") {
+  if (userType === "superAdmin") {
+    // Super admin requirements: 12+ chars, 1 uppercase, 1 lowercase, 1 number, 1 special
+    const minLength = 12;
+    const hasUppercase = /[A-Z]/.test(password);
+    const hasLowercase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+    if (password.length < minLength) {
+      return {valid: false, message: `Password must be at least ${minLength} characters`};
+    }
+    if (!hasUppercase) {
+      return {valid: false, message: "Password must contain at least one uppercase letter"};
+    }
+    if (!hasLowercase) {
+      return {valid: false, message: "Password must contain at least one lowercase letter"};
+    }
+    if (!hasNumber) {
+      return {valid: false, message: "Password must contain at least one number"};
+    }
+    if (!hasSpecial) {
+      return {valid: false, message: "Password must contain at least one special character"};
+    }
+
+    return {valid: true};
+  } else {
+    // Restaurant user requirements: 8+ chars, 1 uppercase, 1 number
+    const minLength = 8;
+    const hasUppercase = /[A-Z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+
+    if (password.length < minLength) {
+      return {valid: false, message: `Password must be at least ${minLength} characters`};
+    }
+    if (!hasUppercase) {
+      return {valid: false, message: "Password must contain at least one uppercase letter"};
+    }
+    if (!hasNumber) {
+      return {valid: false, message: "Password must contain at least one number"};
+    }
+
+    return {valid: true};
+  }
+}
+
+/**
+ * Cloud Function: authenticateSuperAdmin
+ * Authenticates a super admin user with username and password
+ * Queries super_admins collection only
+ * Returns a Firebase Custom Auth Token
+ */
+export const authenticateSuperAdmin = onCall(async (request) => {
+  const {username, password} = request.data;
+
+  // Validate input
+  if (!username || !password) {
+    throw new HttpsError(
+        "invalid-argument",
+        "Username and password are required",
+    );
+  }
+
+  try {
+    // Query Firestore for super admin by username
+    const superAdminsRef = db.collection("super_admins");
+    const querySnapshot = await superAdminsRef.where("username", "==", username).limit(1).get();
+
+    if (querySnapshot.empty) {
+      throw new HttpsError("not-found", "Invalid credentials");
+    }
+
+    const adminDoc = querySnapshot.docs[0];
+    const adminData = adminDoc.data();
+
+    // Check if super admin is active
+    if (adminData.status !== "active") {
+      throw new HttpsError("permission-denied", "Account is inactive");
+    }
+
+    // Verify password
+    const passwordMatch = await bcrypt.compare(password, adminData.passwordHash);
+
+    if (!passwordMatch) {
+      // Log failed attempt
+      await adminDoc.ref.update({
+        loginAttempts: FieldValue.increment(1),
+        lastFailedLoginAt: new Date(),
+      });
+
+      throw new HttpsError("not-found", "Invalid credentials");
+    }
+
+    // Prepare custom claims for super admin
+    const customClaims = {
+      role: "superAdmin",
+      username: adminData.username,
+      name: adminData.name,
+      phone: adminData.phone || null,
+      restaurantId: null, // Super admins have no specific restaurant
+      isSuperAdmin: true,
+    };
+
+    // Set custom claims
+    await auth.setCustomUserClaims(adminDoc.id, customClaims);
+
+    // Generate custom auth token with claims
+    const customToken = await auth.createCustomToken(adminDoc.id, customClaims);
+
+    // Update last login and reset login attempts
+    await adminDoc.ref.update({
+      lastLoginAt: new Date(),
+      loginAttempts: 0,
+    });
+
+    // Log successful authentication to audit trail
+    const ipAddress = request.rawRequest && request.rawRequest.ip ? request.rawRequest.ip : null;
+    const userAgent = request.rawRequest && request.rawRequest.headers ? request.rawRequest.headers["user-agent"] : null;
+
+    await db.collection("audit_logs").add({
+      type: "super_admin_login",
+      userId: adminDoc.id,
+      username: adminData.username,
+      timestamp: new Date(),
+      success: true,
+      ipAddress: ipAddress,
+      userAgent: userAgent,
+    });
+
+    return {
+      success: true,
+      token: customToken,
+      user: {
+        id: adminDoc.id,
+        username: adminData.username,
+        name: adminData.name,
+        role: "superAdmin",
+        phone: adminData.phone || null,
+        isSuperAdmin: true,
+        restaurantId: null,
+        createdAt: adminData.createdAt || Date.now(),
+        updatedAt: adminData.updatedAt || Date.now(),
+      },
+    };
+  } catch (error) {
+    console.error("Super admin authentication error:", error);
+
+    // Log failed authentication attempt
+    try {
+      const ipAddress = request.rawRequest && request.rawRequest.ip ? request.rawRequest.ip : null;
+      const userAgent = request.rawRequest && request.rawRequest.headers ? request.rawRequest.headers["user-agent"] : null;
+
+      await db.collection("audit_logs").add({
+        type: "super_admin_login",
+        username: username,
+        timestamp: new Date(),
+        success: false,
+        error: error.message,
+        ipAddress: ipAddress,
+        userAgent: userAgent,
+      });
+    } catch (logError) {
+      console.error("Failed to log authentication attempt:", logError);
+    }
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError("internal", "Authentication failed");
+  }
+});
+
+/**
  * Cloud Function: authenticateUser
  * Authenticates a user with username and password
  * Returns a Firebase Custom Auth Token
+ * UPDATED: Rejects super admin logins (they must use authenticateSuperAdmin)
  */
 export const authenticateUser = onCall(async (request) => {
   const {username, password} = request.data;
@@ -301,6 +483,14 @@ export const authenticateUser = onCall(async (request) => {
     const userDoc = querySnapshot.docs[0];
     const userData = userDoc.data();
 
+    // SECURITY: Reject super admin logins (they must use authenticateSuperAdmin)
+    if (userData.isSuperAdmin === true) {
+      throw new HttpsError(
+          "permission-denied",
+          "Please use the platform admin login",
+      );
+    }
+
     // Check if user is active (supports both 'status' and 'isActive' fields)
     const isActive = userData.isActive !== undefined ? userData.isActive : (userData.status === "active");
     if (!isActive) {
@@ -321,6 +511,7 @@ export const authenticateUser = onCall(async (request) => {
       name: userData.name,
       phone: userData.phone,
       restaurantId: userData.restaurantId || null, // Multi-tenant: Include restaurantId
+      restaurantIds: userData.restaurantIds || (userData.restaurantId ? [userData.restaurantId] : []), // Multi-restaurant support
       isSuperAdmin: userData.isSuperAdmin || false,
     };
 
@@ -432,6 +623,7 @@ export const createUser = onCall(async (request) => {
     await auth.setCustomUserClaims(userRecord.uid, {
       role,
       restaurantId: restaurantId,
+      restaurantIds: [restaurantId], // Multi-restaurant support
     });
 
     // Create user document in Firestore with restaurantId
@@ -1010,6 +1202,7 @@ export const signUpClient = onCall(async (request) => {
     const customClaims = {
       role: "client",
       restaurantId: restaurantId,
+      restaurantIds: [restaurantId], // Multi-restaurant support
       username: username,
       name: name,
       phone: phone,
@@ -1249,6 +1442,7 @@ export const setActiveRestaurant = onCall(async (request) => {
     const customClaims = {
       role: userData.role,
       restaurantId: restaurantId, // Update token claim for security rules
+      restaurantIds: restaurantIds, // Multi-restaurant support
       username: userData.username,
       name: userData.name,
       phone: userData.phone,

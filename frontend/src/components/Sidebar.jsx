@@ -88,11 +88,13 @@ export default function Sidebar() {
         { path: '/menu', label: nav.menu, icon: '🍔' },
         { path: '/kitchen', label: nav.kitchen, icon: '👨‍🍳' },
         { path: '/users', label: users.users, icon: '👥' },
+        { path: '/qr-generator', label: 'QR Code', icon: '🔗' },
       ],
       cashier: [
         { path: '/', label: nav.orders, icon: '📋' },
         { path: '/orders-history', label: orders.orderHistory, icon: '📜' },
         { path: '/menu', label: nav.menu, icon: '🍔' },
+        { path: '/qr-generator', label: 'QR Code', icon: '🔗' },
       ],
       cook: [
         { path: '/kitchen', label: nav.kitchen, icon: '👨‍🍳' },

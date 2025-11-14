@@ -21,8 +21,13 @@ export default function ProtectedRoute({ children, allowedRoles = [] }) {
     );
   }
 
-  // Redirect to login if not authenticated
+  // Redirect to appropriate login if not authenticated
   if (!user) {
+    // If trying to access super admin routes, redirect to platform admin login
+    if (allowedRoles.includes('superAdmin')) {
+      return <Navigate to="/platform-admin" replace />;
+    }
+    // Otherwise, redirect to restaurant login
     return <Navigate to="/login" replace />;
   }
 

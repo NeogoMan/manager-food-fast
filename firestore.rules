@@ -56,7 +56,7 @@ service cloud.firestore {
     // NEW: Check if user has access to a specific restaurant
     function hasAccessToRestaurant(restaurantId) {
       return isAuthenticated() &&
-             restaurantId in getUserRestaurantIds();
+             getUserRestaurantIds().hasAny([restaurantId]);
     }
 
     // Legacy: Check if user belongs to same restaurant (for backward compatibility)
@@ -71,8 +71,9 @@ service cloud.firestore {
     // RESTAURANTS COLLECTION
     // Super admins can manage all restaurants
     // Managers can read their own restaurant
+    // PUBLIC READ for guest self-service (no auth required)
     match /restaurants/{restaurantId} {
-      allow read: if isSuperAdmin() || belongsToSameRestaurant(restaurantId);
+      allow read: if true; // Public read for guest orders - guests need to query by shortCode
       allow create: if isSuperAdmin();
       allow update: if isSuperAdmin() ||
                        (isManager() && belongsToSameRestaurant(restaurantId) &&
@@ -104,11 +105,30 @@ service cloud.firestore {
       }
     }
 
+    // SUPER_ADMINS COLLECTION
+    // Platform administrators - separate from restaurant users
+    // Only super admins can read/write this collection
+    match /super_admins/{adminId} {
+      allow read: if isSuperAdmin();
+      allow create: if isSuperAdmin();
+      allow update: if isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // AUDIT_LOGS COLLECTION
+    // Security audit trail for super admin actions
+    // Only super admins can read, system can write
+    match /audit_logs/{logId} {
+      allow read: if isSuperAdmin();
+      allow write: if false; // Only Cloud Functions can write
+    }
+
     // USERS COLLECTION
     // Multi-tenant: Users isolated by restaurantId(s)
     // Support for multi-restaurant access via restaurantIds array
     // Only managers within the same restaurant can manage users
     // Users can update their own FCM token and restaurantIds
+    // SECURITY: Super admins should NOT be in this collection (use super_admins instead)
     match /users/{userId} {
       // Users can read themselves or others in their restaurant(s), super admins can read all
       allow read: if isAuthenticated() &&
@@ -162,21 +182,33 @@ service cloud.firestore {
 
     // ORDERS COLLECTION
     // Multi-tenant: Orders isolated by restaurantId
+    // Supports staff orders, client orders, and GUEST self-service orders (NO AUTH)
     match /orders/{orderId} {
       // Staff in same restaurant and order owner can read
+      // Guest orders can be read by anyone (secret validated in app, not rules)
       allow read: if isSuperAdmin() ||
                      (isStaff() && belongsToSameRestaurant(resource.data.restaurantId)) ||
-                     (isClient() && resource.data.userId == request.auth.uid);
+                     (isClient() && resource.data.userId == request.auth.uid) ||
+                     resource.data.isGuestOrder == true;
 
       // Staff can create orders in their restaurant
       // Clients can create orders with their restaurantId
+      // UNAUTHENTICATED guests can create orders (no userId required)
       allow create: if (isStaff() &&
                         isValidRestaurantId(request.resource.data.restaurantId) &&
                         belongsToSameRestaurant(request.resource.data.restaurantId)) ||
                        (isClient() &&
                         request.resource.data.userId == request.auth.uid &&
                         isValidRestaurantId(request.resource.data.restaurantId) &&
-                        belongsToSameRestaurant(request.resource.data.restaurantId));
+                        belongsToSameRestaurant(request.resource.data.restaurantId)) ||
+                       (!isAuthenticated() &&
+                        request.resource.data.isGuestOrder == true &&
+                        request.resource.data.guestName != null &&
+                        request.resource.data.guestName.size() > 0 &&
+                        request.resource.data.trackingSecret != null &&
+                        request.resource.data.trackingSecret.size() > 20 &&
+                        request.resource.data.status == 'awaiting_approval' &&
+                        get(/databases/$(database)/documents/restaurants/$(request.resource.data.restaurantId)).data.acceptingOrders == true);
 
       // Staff in same restaurant can update orders (status changes, assignments)
       // Clients can cancel their own orders if status is awaiting_approval or pending

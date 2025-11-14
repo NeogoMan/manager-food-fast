@@ -19,6 +19,14 @@ export function AuthProvider({ children }) {
           // Get ID token result to access custom claims
           const idTokenResult = await firebaseUser.getIdTokenResult();
 
+          // Debug: Log token claims to verify restaurantIds
+          console.log('🔐 Token Claims:', {
+            restaurantId: idTokenResult.claims.restaurantId,
+            restaurantIds: idTokenResult.claims.restaurantIds,
+            role: idTokenResult.claims.role,
+            isSuperAdmin: idTokenResult.claims.isSuperAdmin
+          });
+
           // Extract user info from token claims
           setFirebaseUser(firebaseUser);
           setUser({
@@ -44,41 +52,46 @@ export function AuthProvider({ children }) {
     return () => unsubscribe();
   }, []);
 
-  const login = async (username, password) => {
-    try {
-      setError(null);
-      setLoading(true);
+  // Login for super admins - calls authenticateSuperAdmin Cloud Function
+  const loginSuperAdmin = async (username, password) => {
+    setLoading(true);
+    setError('');
 
-      // Call Cloud Function to authenticate
-      const authenticateUser = httpsCallable(functions, 'authenticateUser');
-      const result = await authenticateUser({ username, password });
+    try {
+      const authenticateSuperAdmin = httpsCallable(functions, 'authenticateSuperAdmin');
+      const result = await authenticateSuperAdmin({ username, password });
 
       const { token, user: userData } = result.data;
 
-      // Sign in with custom token
+      // Sign in to Firebase with custom token
       await signInWithCustomToken(auth, token);
 
-      // Update user state with data from Cloud Function
+      // Force token refresh to ensure claims are up-to-date
+      if (auth.currentUser) {
+        await auth.currentUser.getIdToken(true);
+        console.log('✅ Token refreshed after super admin login');
+      }
+
+      // User state will be set by onAuthStateChanged listener
       setUser({
         id: userData.id,
         username: userData.username,
         name: userData.name,
         role: userData.role,
         phone: userData.phone,
-        restaurantId: userData.restaurantId || null,
-        isSuperAdmin: userData.isSuperAdmin || false,
+        restaurantId: null,
+        isSuperAdmin: true,
       });
 
       return { user: userData };
     } catch (error) {
-
       // Extract error message
-      let errorMessage = 'Login failed. Please try again.';
+      let errorMessage = 'Super admin login failed. Please try again.';
 
       if (error.code === 'functions/not-found') {
-        errorMessage = 'Invalid username or password';
+        errorMessage = 'Invalid super admin credentials';
       } else if (error.code === 'functions/permission-denied') {
-        errorMessage = 'Your account is inactive. Please contact an administrator.';
+        errorMessage = 'Account is inactive. Please contact support.';
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -88,6 +101,67 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Login for restaurant users - calls authenticateUser Cloud Function
+  const loginRestaurant = async (username, password) => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const authenticateUser = httpsCallable(functions, 'authenticateUser');
+      const result = await authenticateUser({ username, password });
+
+      const { token, user: userData } = result.data;
+
+      // Sign in to Firebase with custom token
+      await signInWithCustomToken(auth, token);
+
+      // Force token refresh to ensure claims are up-to-date
+      if (auth.currentUser) {
+        await auth.currentUser.getIdToken(true);
+        console.log('✅ Token refreshed after restaurant login');
+      }
+
+      // User state will be set by onAuthStateChanged listener
+      setUser({
+        id: userData.id,
+        username: userData.username,
+        name: userData.name,
+        role: userData.role,
+        phone: userData.phone,
+        restaurantId: userData.restaurantId,
+        isSuperAdmin: false,
+      });
+
+      return { user: userData };
+    } catch (error) {
+      // Extract error message
+      let errorMessage = 'Login failed. Please try again.';
+
+      if (error.code === 'functions/not-found') {
+        errorMessage = 'Invalid username or password';
+      } else if (error.code === 'functions/permission-denied') {
+        // Check if it's the "use platform admin login" error
+        if (error.message && error.message.includes('platform admin')) {
+          errorMessage = 'Veuillez utiliser la connexion administrateur plateforme';
+        } else {
+          errorMessage = 'Your account is inactive. Please contact an administrator.';
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Generic login (for backward compatibility) - defaults to restaurant login
+  const login = async (username, password) => {
+    return loginRestaurant(username, password);
   };
 
   const logout = async () => {
@@ -130,6 +204,8 @@ export function AuthProvider({ children }) {
     loading,
     error,
     login,
+    loginSuperAdmin,
+    loginRestaurant,
     logout,
     updateUser,
     hasRole,

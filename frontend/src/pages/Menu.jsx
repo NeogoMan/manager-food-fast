@@ -38,11 +38,21 @@ export default function Menu() {
   async function loadMenuItems() {
     try {
       setIsLoading(true);
+
+      // Get restaurantId from JWT token
+      const auth = await import('../config/firebase').then(m => m.auth);
+      const idTokenResult = await auth.currentUser.getIdTokenResult();
+      const restaurantId = idTokenResult.claims.restaurantId;
+
+      if (!restaurantId) {
+        throw new Error('No restaurantId found in user token');
+      }
+
       let data;
       if (selectedCategory) {
-        data = await menuService.getByCategory(selectedCategory);
+        data = await menuService.getByCategory(selectedCategory, restaurantId);
       } else {
-        data = await menuService.getAll();
+        data = await menuService.getAll(restaurantId);
       }
       setMenuItems(data);
 

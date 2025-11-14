@@ -7,7 +7,9 @@ import { SidebarProvider, useSidebar } from './contexts/SidebarContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import Sidebar from './components/Sidebar';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
+import PlatformAdminLogin from './pages/PlatformAdminLogin';
 import Menu from './pages/Menu';
 import Orders from './pages/Orders';
 import OrdersHistory from './pages/OrdersHistory';
@@ -24,6 +26,9 @@ import useKioskMode from './hooks/useKioskMode';
 import AdminLayout from './components/AdminLayout';
 import Restaurants from './pages/admin/Restaurants';
 import CreateRestaurant from './pages/admin/CreateRestaurant';
+import GuestOrder from './pages/GuestOrder';
+import OrderTracking from './pages/OrderTracking';
+import QRCodeGenerator from './pages/QRCodeGenerator';
 
 /**
  * Staff Layout wrapper that provides responsive sidebar spacing
@@ -108,6 +113,33 @@ function App() {
             <Routes>
               {/* Public Routes */}
               <Route path="/login" element={<Login />} />
+              <Route path="/platform-admin" element={<PlatformAdminLogin />} />
+
+              {/* Guest Self-Service Routes (No Authentication Required) */}
+              <Route
+                path="/guest/:restaurantCode"
+                element={
+                  <ErrorBoundary>
+                    <GuestOrder />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/guest/:restaurantCode/table/:tableNumber"
+                element={
+                  <ErrorBoundary>
+                    <GuestOrder />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/track/:orderId/:secret"
+                element={
+                  <ErrorBoundary>
+                    <OrderTracking />
+                  </ErrorBoundary>
+                }
+              />
 
               {/* Admin Routes (Super Admin Only) */}
               <Route
@@ -234,6 +266,17 @@ function App() {
                           <ProtectedRoute allowedRoles={['manager']}>
                             <StaffLayout>
                               <Users />
+                            </StaffLayout>
+                          </ProtectedRoute>
+                        }
+                      />
+
+                      <Route
+                        path="/qr-generator"
+                        element={
+                          <ProtectedRoute allowedRoles={['manager', 'cashier']}>
+                            <StaffLayout>
+                              <QRCodeGenerator />
                             </StaffLayout>
                           </ProtectedRoute>
                         }

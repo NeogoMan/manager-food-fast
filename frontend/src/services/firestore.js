@@ -24,18 +24,15 @@ import { db } from '../config/firebase';
  * Menu Items Service
  */
 export const menuService = {
-  // Get all menu items
-  async getAll() {
-    const querySnapshot = await getDocs(collection(db, 'menu'));
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-  },
-
-  // Get menu items by category
-  async getByCategory(category) {
-    const q = query(collection(db, 'menu'), where('category', '==', category));
+  // Get all menu items for a specific restaurant
+  async getAll(restaurantId) {
+    if (!restaurantId) {
+      throw new Error('restaurantId is required for menu queries');
+    }
+    const q = query(
+      collection(db, 'menu'),
+      where('restaurantId', '==', restaurantId)
+    );
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
@@ -43,9 +40,33 @@ export const menuService = {
     }));
   },
 
-  // Get available menu items
-  async getAvailable() {
-    const q = query(collection(db, 'menu'), where('isAvailable', '==', true));
+  // Get menu items by category for a specific restaurant
+  async getByCategory(category, restaurantId) {
+    if (!restaurantId) {
+      throw new Error('restaurantId is required for menu queries');
+    }
+    const q = query(
+      collection(db, 'menu'),
+      where('restaurantId', '==', restaurantId),
+      where('category', '==', category)
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+  },
+
+  // Get available menu items for a specific restaurant
+  async getAvailable(restaurantId) {
+    if (!restaurantId) {
+      throw new Error('restaurantId is required for menu queries');
+    }
+    const q = query(
+      collection(db, 'menu'),
+      where('restaurantId', '==', restaurantId),
+      where('isAvailable', '==', true)
+    );
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,

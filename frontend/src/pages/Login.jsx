@@ -6,7 +6,7 @@ import Button from '../components/Button';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { user, login, loading: authLoading } = useAuth();
+  const { user, loginRestaurant, loading: authLoading } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -16,12 +16,12 @@ export default function Login() {
 
   // Redirect if already logged in
   if (user) {
-    // Super admin goes to admin panel
-    if (user.isSuperAdmin) {
-      return <Navigate to="/admin" replace />;
+    // Super admin goes to admin panel (must explicitly be true)
+    if (user.isSuperAdmin === true) {
+      return <Navigate to="/admin/restaurants" replace />;
     }
 
-    // Redirect based on role
+    // Redirect based on role (restaurant managers, cashiers, cooks, clients)
     const roleRedirects = {
       manager: '/',
       cashier: '/menu',
@@ -53,9 +53,10 @@ export default function Login() {
     setLoading(true);
 
     try {
-      await login(formData.username, formData.password);
+      await loginRestaurant(formData.username, formData.password);
       // Redirect will happen automatically via the Navigate component above
     } catch (error) {
+      console.error('Restaurant login error:', error);
       setError(error.message || 'Échec de la connexion. Veuillez réessayer.');
     } finally {
       setLoading(false);
@@ -79,7 +80,7 @@ export default function Login() {
             🍔 Fast Food Manager
           </h1>
           <p className="text-lg" style={{ color: 'var(--text-secondary)' }}>
-            Système de gestion de restaurant
+            Connexion Restaurant
           </p>
         </div>
 
@@ -174,6 +175,21 @@ export default function Login() {
           <div className="mt-6 p-4 rounded" style={{ backgroundColor: 'var(--bg-secondary)' }}>
             <p className="text-xs text-center" style={{ color: 'var(--text-secondary)' }}>
               Compte par défaut : <strong>admin</strong> / <strong>Admin123!</strong>
+            </p>
+          </div>
+
+          {/* Platform Admin Link */}
+          <div className="mt-4 text-center">
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+              Administrateur plateforme?{' '}
+              <button
+                onClick={() => navigate('/platform-admin')}
+                className="font-medium hover:underline"
+                style={{ color: 'var(--primary)' }}
+                type="button"
+              >
+                Connexion admin
+              </button>
             </p>
           </div>
         </div>

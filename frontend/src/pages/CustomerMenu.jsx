@@ -31,12 +31,27 @@ export default function CustomerMenu() {
   const fetchMenuItems = async () => {
     try {
       setLoading(true);
-      // Get only available menu items
-      // Note: This is a public menu for guests/clients, no auth required
-      const data = await menuService.getAvailable();
+
+      // Get restaurantId from authenticated customer's JWT token
+      const auth = await import('../config/firebase').then(m => m.auth);
+      const currentUser = auth.currentUser;
+
+      if (!currentUser) {
+        throw new Error('Customer must be logged in to view menu');
+      }
+
+      const idTokenResult = await currentUser.getIdTokenResult();
+      const restaurantId = idTokenResult.claims.restaurantId;
+
+      if (!restaurantId) {
+        throw new Error('Customer is not registered to a restaurant');
+      }
+
+      // Get only available menu items for customer's restaurant
+      const data = await menuService.getAvailable(restaurantId);
       setMenuItems(data);
     } catch (error) {
-      showToast('Erreur lors du chargement du menu', 'error');
+      showToast(error.message || 'Erreur lors du chargement du menu', 'error');
     } finally {
       setLoading(false);
     }

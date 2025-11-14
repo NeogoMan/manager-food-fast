@@ -52,6 +52,12 @@ export default function Cart() {
         throw new Error('No restaurantId found in auth token');
       }
 
+      // Validate all cart items belong to user's restaurant
+      const invalidItems = cartItems.filter(item => item.restaurantId !== restaurantId);
+      if (invalidItems.length > 0) {
+        throw new Error('Cart contains items from a different restaurant. Please clear your cart and try again.');
+      }
+
       // Check if restaurant is accepting orders
       const restaurantSettings = await getRestaurantSettings(restaurantId);
       if (restaurantSettings.acceptingOrders === false) {
