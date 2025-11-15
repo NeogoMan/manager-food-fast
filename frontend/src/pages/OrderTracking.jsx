@@ -1,14 +1,19 @@
-import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import * as sessionManager from '../utils/sessionManager';
 import styles from './OrderTracking.module.css';
 
 export default function OrderTracking() {
   const { orderId, secret } = useParams();
+  const navigate = useNavigate();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showThankYou, setShowThankYou] = useState(false);
+  const [countdown, setCountdown] = useState(5);
+  const hasShownThankYou = useRef(false);
 
   useEffect(() => {
     if (!orderId || !secret) {
@@ -44,6 +49,12 @@ export default function OrderTracking() {
           return;
         }
 
+        // Check if order just became completed (only show thank you once)
+        if (orderData.status === 'completed' && !hasShownThankYou.current) {
+          hasShownThankYou.current = true;
+          setShowThankYou(true);
+        }
+
         setOrder(orderData);
         setError(null);
         setLoading(false);
@@ -57,6 +68,26 @@ export default function OrderTracking() {
 
     return () => unsubscribe();
   }, [orderId, secret]);
+
+  // Handle thank you countdown and session cleanup
+  useEffect(() => {
+    if (!showThankYou) return;
+
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          // Clear session when countdown reaches 0
+          sessionManager.clearSession();
+          sessionManager.clearOrderPlaced();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [showThankYou, navigate]);
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -262,6 +293,40 @@ export default function OrderTracking() {
         <p className={styles.notice}>
           ℹ️ Cette page se met à jour automatiquement
         </p>
+      )}
+
+      {/* Thank You Modal */}
+      {showThankYou && (
+        <div className={styles.thankYouOverlay}>
+          <div className={styles.thankYouModal}>
+            <div className={styles.thankYouIcon}>🎉</div>
+            {countdown > 0 ? (
+              <>
+                <h2 className={styles.thankYouTitle}>Merci pour votre visite !</h2>
+                <p className={styles.thankYouMessage}>
+                  Votre commande est terminée. Nous espérons vous revoir bientôt !
+                </p>
+                <div className={styles.thankYouOrder}>
+                  <p><strong>Commande:</strong> #{order.orderNumber || order.id.slice(-6).toUpperCase()}</p>
+                  <p><strong>Total:</strong> {order.totalAmount.toFixed(2)} DH</p>
+                </div>
+                <p className={styles.thankYouCountdown}>
+                  Session se terminera dans <strong>{countdown}</strong> seconde(s)...
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className={styles.thankYouTitle}>Merci !</h2>
+                <p className={styles.thankYouMessage}>
+                  Vous pouvez fermer cette page maintenant.
+                </p>
+                <p className={styles.thankYouMessage}>
+                  Ou scanner le code QR à nouveau pour une nouvelle commande.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
