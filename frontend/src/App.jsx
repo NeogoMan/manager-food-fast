@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
+import { UserPreferencesProvider } from './contexts/UserPreferencesContext';
 import { CartProvider } from './contexts/CartContext';
 import { SidebarProvider, useSidebar } from './contexts/SidebarContext';
 import { SettingsProvider } from './contexts/SettingsContext';
@@ -84,9 +85,10 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <SettingsProvider>
-          <SidebarProvider>
-            <CartProvider>
+        <UserPreferencesProvider>
+          <SettingsProvider>
+            <SidebarProvider>
+              <CartProvider>
               {/* Offline Banner */}
             {!isOnline && (
             <div
@@ -299,9 +301,10 @@ function App() {
             </Routes>
           </Router>
             </div>
-            </CartProvider>
-          </SidebarProvider>
-        </SettingsProvider>
+              </CartProvider>
+            </SidebarProvider>
+          </SettingsProvider>
+        </UserPreferencesProvider>
       </AuthProvider>
     </ThemeProvider>
   );

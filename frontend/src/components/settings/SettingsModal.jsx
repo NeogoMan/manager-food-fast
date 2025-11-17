@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import TicketSettings from './TicketSettings';
-import KitchenDisplaySettings from './KitchenDisplaySettings';
-import NotificationSettings from './NotificationSettings';
 
 const SettingsModal = ({ isOpen, onClose }) => {
   const { user } = useAuth();
@@ -40,26 +38,6 @@ const SettingsModal = ({ isOpen, onClose }) => {
         </svg>
       ),
       visible: true // All roles can access ticket settings
-    },
-    {
-      id: 'kitchen',
-      label: 'Affichage Cuisine',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        </svg>
-      ),
-      visible: isManager // Only managers can access kitchen display settings
-    },
-    {
-      id: 'notifications',
-      label: 'Notifications',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-        </svg>
-      ),
-      visible: isManager // Only managers can access notification settings
     }
   ];
 
@@ -136,8 +114,6 @@ const SettingsModal = ({ isOpen, onClose }) => {
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
           {activeTab === 'ticket' && <TicketSettings disabled={isViewOnly} />}
-          {activeTab === 'kitchen' && <KitchenDisplaySettings disabled={isViewOnly} />}
-          {activeTab === 'notifications' && <NotificationSettings disabled={isViewOnly} />}
         </div>
 
         {/* Footer */}

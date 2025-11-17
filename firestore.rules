@@ -249,6 +249,31 @@ service cloud.firestore {
                         belongsToSameRestaurant(resource.data.restaurantId));
     }
 
+    // ORDER_COUNTERS COLLECTION
+    // Sequential order number counters (monthly reset)
+    // Multi-tenant: Counters isolated by restaurantId
+    // IMPORTANT: Write via transactions with restaurant validation
+    match /order_counters/{counterId} {
+      // Staff and super admins can read counter status
+      allow read: if isAuthenticated() &&
+                     (isSuperAdmin() ||
+                      isStaff());
+
+      // Staff can create counters for their own restaurant via transactions
+      allow create: if isSuperAdmin() ||
+                       (isStaff() &&
+                        request.resource.data.restaurantId != null &&
+                        belongsToSameRestaurant(request.resource.data.restaurantId));
+
+      // Staff can update counters for their own restaurant via transactions
+      allow update: if isSuperAdmin() ||
+                       (isStaff() &&
+                        belongsToSameRestaurant(resource.data.restaurantId));
+
+      // Only super admins can delete counters
+      allow delete: if isSuperAdmin();
+    }
+
     // Deny all other access
     match /{document=**} {
       allow read, write: if false;

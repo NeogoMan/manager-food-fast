@@ -52,18 +52,6 @@ const TicketSettings = ({ disabled = false }) => {
     }
   };
 
-  const handleOrderNumberFormatChange = async (format) => {
-    try {
-      setIsSaving(true);
-      await updateTicketSettings({ orderNumberFormat: format });
-    } catch (error) {
-      console.error('Error updating order number format:', error);
-      alert(error.message || 'Erreur lors de la mise à jour du format de numéro');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const handleFooterMessageChange = async (e) => {
     const message = e.target.value;
     try {
@@ -116,74 +104,58 @@ const TicketSettings = ({ disabled = false }) => {
         }
       >
         <ToggleSwitch
-          label="Ticket de cuisine"
-          description="Imprimer les tickets de cuisine pour la préparation des commandes"
-          checked={settings.ticket.kitchenTicketEnabled}
-          onChange={(value) => handleToggle('kitchenTicketEnabled', value)}
-          disabled={disabled || isSaving}
-        />
-        <ToggleSwitch
-          label="Reçu client"
-          description="Imprimer les reçus pour les clients"
-          checked={settings.ticket.customerReceiptEnabled}
-          onChange={(value) => handleToggle('customerReceiptEnabled', value)}
-          disabled={disabled || isSaving}
-        />
-        <ToggleSwitch
-          label="Impression automatique"
-          description="Imprimer automatiquement lors de la création d'une commande"
-          checked={settings.ticket.autoPrintOnOrder}
-          onChange={(value) => handleToggle('autoPrintOnOrder', value)}
+          label="Afficher les boutons d'impression"
+          description="Afficher les boutons 🍳 Cuisine et 📄 Reçu sur les commandes"
+          checked={settings.ticket.showPrinterButtons}
+          onChange={(value) => handleToggle('showPrinterButtons', value)}
           disabled={disabled || isSaving}
         />
       </SettingsSection>
 
       {/* Kitchen Ticket Format */}
-      {settings.ticket.kitchenTicketEnabled && (
-        <SettingsSection
-          title="Format du ticket de cuisine"
-          description="Personnalisez les informations affichées sur les tickets de cuisine"
-          icon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          }
-        >
-          <ToggleSwitch
-            label="Afficher le numéro de commande"
-            description="Afficher l'ID de commande sur le ticket de cuisine"
-            checked={settings.ticket.kitchenTicketFormat.showOrderNumber}
-            onChange={(value) => handleFormatToggle('showOrderNumber', value)}
-            disabled={disabled || isSaving}
-          />
-          <ToggleSwitch
-            label="Afficher la date et l'heure"
-            description="Afficher l'horodatage de la commande"
-            checked={settings.ticket.kitchenTicketFormat.showDateTime}
-            onChange={(value) => handleFormatToggle('showDateTime', value)}
-            disabled={disabled || isSaving}
-          />
-          <ToggleSwitch
-            label="Afficher les notes"
-            description="Afficher les notes et instructions spéciales du client"
-            checked={settings.ticket.kitchenTicketFormat.showNotes}
-            onChange={(value) => handleFormatToggle('showNotes', value)}
-            disabled={disabled || isSaving}
-          />
-          <SelectInput
-            label="Taille de police"
-            description="Taille du texte sur le ticket de cuisine"
-            value={settings.ticket.kitchenTicketFormat.fontSize}
-            onChange={handleFontSizeChange}
-            disabled={disabled || isSaving}
-            options={[
-              { value: 'small', label: 'Petite' },
-              { value: 'medium', label: 'Moyenne' },
-              { value: 'large', label: 'Grande' }
-            ]}
-          />
-        </SettingsSection>
-      )}
+      <SettingsSection
+        title="Format du ticket de cuisine"
+        description="Personnalisez les informations affichées sur les tickets de cuisine"
+        icon={
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        }
+      >
+        <ToggleSwitch
+          label="Afficher le numéro de commande"
+          description="Afficher l'ID de commande sur le ticket de cuisine"
+          checked={settings.ticket.kitchenTicketFormat.showOrderNumber}
+          onChange={(value) => handleFormatToggle('showOrderNumber', value)}
+          disabled={disabled || isSaving}
+        />
+        <ToggleSwitch
+          label="Afficher la date et l'heure"
+          description="Afficher l'horodatage de la commande"
+          checked={settings.ticket.kitchenTicketFormat.showDateTime}
+          onChange={(value) => handleFormatToggle('showDateTime', value)}
+          disabled={disabled || isSaving}
+        />
+        <ToggleSwitch
+          label="Afficher les notes"
+          description="Afficher les notes et instructions spéciales du client"
+          checked={settings.ticket.kitchenTicketFormat.showNotes}
+          onChange={(value) => handleFormatToggle('showNotes', value)}
+          disabled={disabled || isSaving}
+        />
+        <SelectInput
+          label="Taille de police"
+          description="Taille du texte sur le ticket de cuisine"
+          value={settings.ticket.kitchenTicketFormat.fontSize}
+          onChange={handleFontSizeChange}
+          disabled={disabled || isSaving}
+          options={[
+            { value: 'small', label: 'Petite' },
+            { value: 'medium', label: 'Moyenne' },
+            { value: 'large', label: 'Grande' }
+          ]}
+        />
+      </SettingsSection>
 
       {/* TVA Settings */}
       <SettingsSection
@@ -215,30 +187,6 @@ const TicketSettings = ({ disabled = false }) => {
             disabled={disabled || isSaving}
           />
         )}
-      </SettingsSection>
-
-      {/* Order Numbering */}
-      <SettingsSection
-        title="Numérotation des commandes"
-        description="Format de numérotation des commandes"
-        icon={
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
-          </svg>
-        }
-      >
-        <SelectInput
-          label="Format du numéro de commande"
-          description="Choisir le format de numérotation"
-          value={settings.ticket.orderNumberFormat}
-          onChange={handleOrderNumberFormatChange}
-          disabled={disabled || isSaving}
-          options={[
-            { value: 'sequential', label: 'Séquentiel (1, 2, 3...)' },
-            { value: 'date-based', label: 'Basé sur la date (20250108-001)' },
-            { value: 'custom', label: 'Personnalisé' }
-          ]}
-        />
       </SettingsSection>
 
       {/* Receipt Customization */}
@@ -287,24 +235,20 @@ const TicketSettings = ({ disabled = false }) => {
         }
       >
         <div className="py-3 flex space-x-3">
-          {settings.ticket.kitchenTicketEnabled && (
-            <button
-              onClick={() => handleTestPrint('kitchen')}
-              disabled={disabled}
-              className="flex-1 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Imprimer ticket de cuisine
-            </button>
-          )}
-          {settings.ticket.customerReceiptEnabled && (
-            <button
-              onClick={() => handleTestPrint('receipt')}
-              disabled={disabled}
-              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Imprimer reçu client
-            </button>
-          )}
+          <button
+            onClick={() => handleTestPrint('kitchen')}
+            disabled={disabled}
+            className="flex-1 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Imprimer ticket de cuisine
+          </button>
+          <button
+            onClick={() => handleTestPrint('receipt')}
+            disabled={disabled}
+            className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Imprimer reçu client
+          </button>
         </div>
       </SettingsSection>
 

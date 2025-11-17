@@ -1,12 +1,77 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { approval } from '../utils/translations';
 
 export default function ApprovalNotification({ orders, onApprove, onReject }) {
   const [loading, setLoading] = useState(null);
+  const [timers, setTimers] = useState({});
+  const timerRefs = useRef({});
+
+  // Initialize timers for new orders
+  useEffect(() => {
+    const newTimers = { ...timers };
+
+    orders.forEach((order) => {
+      if (!(order.id in newTimers)) {
+        newTimers[order.id] = 10; // Start with 10 seconds
+      }
+    });
+
+    // Remove timers for orders that are no longer in the list
+    Object.keys(newTimers).forEach((orderId) => {
+      if (!orders.find(o => o.id === orderId)) {
+        delete newTimers[orderId];
+        if (timerRefs.current[orderId]) {
+          clearInterval(timerRefs.current[orderId]);
+          delete timerRefs.current[orderId];
+        }
+      }
+    });
+
+    setTimers(newTimers);
+  }, [orders]);
+
+  // Countdown logic for each order
+  useEffect(() => {
+    orders.forEach((order) => {
+      const timeRemaining = timers[order.id];
+
+      // Auto-approve when timer reaches 0
+      if (timeRemaining === 0 && !loading) {
+        console.log(`Auto-approving order ${order.id}`);
+        handleApprove(order.id);
+        return;
+      }
+
+      // Clear existing interval
+      if (timerRefs.current[order.id]) {
+        clearInterval(timerRefs.current[order.id]);
+      }
+
+      // Start countdown if time remaining > 0
+      if (timeRemaining > 0) {
+        timerRefs.current[order.id] = setInterval(() => {
+          setTimers((prev) => ({
+            ...prev,
+            [order.id]: Math.max(0, prev[order.id] - 1)
+          }));
+        }, 1000);
+      }
+    });
+
+    // Cleanup intervals on unmount or when orders/timers change
+    return () => {
+      Object.values(timerRefs.current).forEach(clearInterval);
+    };
+  }, [timers, orders, loading]);
 
   if (!orders || orders.length === 0) return null;
 
   const handleApprove = async (orderId) => {
+    // Clear timer for this order
+    if (timerRefs.current[orderId]) {
+      clearInterval(timerRefs.current[orderId]);
+      delete timerRefs.current[orderId];
+    }
     setLoading(orderId);
     try {
       await onApprove(orderId);
@@ -16,6 +81,12 @@ export default function ApprovalNotification({ orders, onApprove, onReject }) {
   };
 
   const handleReject = async (orderId) => {
+    // Clear timer for this order
+    if (timerRefs.current[orderId]) {
+      clearInterval(timerRefs.current[orderId]);
+      delete timerRefs.current[orderId];
+    }
+
     setLoading(orderId);
     try {
       await onReject(orderId);
@@ -113,6 +184,31 @@ export default function ApprovalNotification({ orders, onApprove, onReject }) {
               >
                 {order.totalAmount?.toFixed(2) || '0.00'} MAD
               </span>
+            </div>
+          </div>
+
+          {/* Timer Countdown */}
+          <div className="mb-3">
+            <div className="text-center mb-2">
+              <span
+                className="text-sm font-bold"
+                style={{ color: '#f59e0b' }}
+              >
+                ⏱️ Auto-approbation dans {timers[order.id] || 0}s
+              </span>
+            </div>
+            {/* Progress Bar */}
+            <div
+              className="w-full rounded-full h-2"
+              style={{ backgroundColor: '#e5e7eb' }}
+            >
+              <div
+                className="h-2 rounded-full transition-all duration-1000"
+                style={{
+                  backgroundColor: '#f59e0b',
+                  width: `${((timers[order.id] || 0) / 10) * 100}%`
+                }}
+              />
             </div>
           </div>
 

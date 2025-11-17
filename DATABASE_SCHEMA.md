@@ -125,6 +125,59 @@ The database uses **Cloud Firestore**, a NoSQL document database with the follow
 
 ---
 
+### `order_counters` Collection
+
+**Purpose**: Track sequential order numbers per restaurant with monthly reset
+
+**Document ID**: `{restaurantId}_{YYYY-MM}` (e.g., "rest_abc123xyz_2025-01")
+
+**Fields**:
+```javascript
+{
+  // Multi-Tenant Association
+  restaurantId: string,            // Restaurant ID
+
+  // Counter Data
+  month: string,                   // "YYYY-MM" format (e.g., "2025-01")
+  counter: number,                 // Current counter value (1-9999)
+
+  // Metadata
+  lastReset: Timestamp,            // When counter was initialized/reset
+  createdAt: Timestamp,
+  updatedAt: Timestamp
+}
+```
+
+**Indexes**:
+- `restaurantId` + `month` (composite, unique)
+- `month` (ascending)
+
+**Example**:
+```javascript
+{
+  id: "rest_abc123xyz_2025-01",
+  restaurantId: "rest_abc123xyz",
+  month: "2025-01",
+  counter: 47,                     // Next order will be #0048
+  lastReset: Timestamp(2025, 1, 1, 0, 0, 0),
+  createdAt: Timestamp(2025, 1, 1, 0, 0, 0),
+  updatedAt: Timestamp(2025, 1, 15, 14, 30, 0)
+}
+```
+
+**Counter Reset Logic**:
+- **Automatic**: Counter resets when month changes (new document created)
+- **Range**: 0001-9999 (4-digit padded format)
+- **Limit**: Maximum 9,999 orders per restaurant per month
+- **Atomicity**: Uses Firestore transactions to prevent race conditions
+
+**Usage**:
+- Called by `generateSequentialOrderNumber(restaurantId)` in `orderNumberGenerator.js`
+- Transaction ensures thread-safe increment
+- Old month counters remain for historical reference
+
+---
+
 ### `users` Collection
 
 **Purpose**: Store restaurant users (managers, cashiers, cooks, clients)
@@ -280,7 +333,7 @@ The database uses **Cloud Firestore**, a NoSQL document database with the follow
   restaurantId: string,
 
   // Order Identification
-  orderNumber: string,             // "0847" (4-digit random) or timestamp-based
+  orderNumber: string,             // "0001"-"9999" (4-digit sequential, resets monthly)
 
   // Order Source
   isGuestOrder: boolean,           // true for QR code orders

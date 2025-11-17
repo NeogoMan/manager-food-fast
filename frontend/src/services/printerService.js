@@ -4,7 +4,7 @@
  */
 
 import printerConfig from '../config/printerConfig';
-import { formatOrderTicket, formatTestTicket } from './ticketFormatter';
+import { formatOrderTicket, formatKitchenTicket, formatTestTicket } from './ticketFormatter';
 
 // LocalStorage keys
 const STORAGE_KEYS = {
@@ -118,6 +118,50 @@ class PrinterService {
     commands.push(...textBytes);
 
     commands.push(...PrinterService.Commands.LINE_FEED);
+    commands.push(...PrinterService.Commands.LINE_FEED);
+    commands.push(...PrinterService.Commands.LINE_FEED);
+
+    if (printerConfig.ticket.autocut) {
+      commands.push(...PrinterService.Commands.CUT_PARTIAL);
+    }
+
+    return new Uint8Array(commands);
+  }
+
+  buildKitchenPrintData(text) {
+    const commands = [];
+    commands.push(...PrinterService.Commands.INIT);
+    commands.push(...PrinterService.Commands.SELECT_CODEPAGE(0));
+
+    // Split text into lines to find order number and make it large
+    const lines = text.split('\n');
+    let inOrderNumberSection = false;
+
+    lines.forEach((line) => {
+      // Detect "COMMANDE" or order number line (starts with #)
+      if (line.includes('COMMANDE') || line.trim().startsWith('#')) {
+        inOrderNumberSection = true;
+        // Make order number LARGE and BOLD
+        commands.push(...PrinterService.Commands.ALIGN_CENTER);
+        commands.push(...PrinterService.Commands.BOLD_ON);
+        commands.push(...PrinterService.Commands.SIZE_DOUBLE_BOTH);
+        commands.push(...this.encodeText(line));
+        commands.push(...PrinterService.Commands.LINE_FEED);
+        commands.push(...PrinterService.Commands.SIZE_NORMAL);
+        commands.push(...PrinterService.Commands.BOLD_OFF);
+        commands.push(...PrinterService.Commands.ALIGN_LEFT);
+      } else if (line.includes('===')) {
+        // Separator after order number - end of large section
+        inOrderNumberSection = false;
+        commands.push(...this.encodeText(line));
+        commands.push(...PrinterService.Commands.LINE_FEED);
+      } else {
+        // Regular line
+        commands.push(...this.encodeText(line));
+        commands.push(...PrinterService.Commands.LINE_FEED);
+      }
+    });
+
     commands.push(...PrinterService.Commands.LINE_FEED);
     commands.push(...PrinterService.Commands.LINE_FEED);
 
@@ -446,12 +490,12 @@ class PrinterService {
   }
 
   /**
-   * Print order ticket
+   * Print order ticket (client receipt)
    */
-  async printOrderTicket(order, additionalData = {}) {
+  async printOrderTicket(order, additionalData = {}, settings = {}) {
     try {
 
-      const ticketText = formatOrderTicket(order, additionalData);
+      const ticketText = formatOrderTicket(order, additionalData, settings);
 
       const printData = this.buildPrintData(ticketText);
 
@@ -461,6 +505,27 @@ class PrinterService {
       await this.sendToPrinter(printData);
 
       return { success: true, message: 'Ticket imprimé avec succès' };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Print kitchen ticket (compact, no prices, large order number)
+   */
+  async printKitchenTicket(order, settings = {}) {
+    try {
+
+      const kitchenTicketText = formatKitchenTicket(order, settings);
+
+      const printData = this.buildKitchenPrintData(kitchenTicketText);
+
+      if (!this.getConnectionStatus()) {
+        throw new Error('Imprimante non connectée');
+      }
+      await this.sendToPrinter(printData);
+
+      return { success: true, message: 'Ticket cuisine imprimé avec succès' };
     } catch (error) {
       throw error;
     }

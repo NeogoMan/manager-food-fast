@@ -19,6 +19,7 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { generateSequentialOrderNumber } from '../utils/orderNumberGenerator';
 
 /**
  * Menu Items Service
@@ -193,8 +194,9 @@ export const ordersService = {
 
   // Create order
   async create(orderData, restaurantId, userInfo = null) {
-    // Generate order number
-    const orderNumber = `ORD-${Date.now()}`;
+    // Generate sequential order number (resets monthly)
+    // Format: 4-digit padded number (0001-9999)
+    const orderNumber = await generateSequentialOrderNumber(restaurantId);
 
     // Use the status from orderData, or default to 'awaiting_approval'
     const status = orderData.status || 'awaiting_approval';

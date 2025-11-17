@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { functions } from '../config/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { client, users, auth, actions, form } from '../utils/translations';
@@ -8,7 +9,8 @@ import Toast from '../components/Toast';
 
 export default function Profile() {
   const { user, updateUser } = useAuth();
-  const [activeTab, setActiveTab] = useState('info'); // 'info' or 'password'
+  const { getPrinterPreferences, updatePrinterPreferences } = useUserPreferences();
+  const [activeTab, setActiveTab] = useState('info'); // 'info', 'password', or 'printer'
 
   // Profile form state
   const [profileForm, setProfileForm] = useState({
@@ -256,6 +258,25 @@ export default function Profile() {
               >
                 🔒 Mot de passe
               </button>
+              {/* Printer preferences - only for managers and cashiers */}
+              {(user?.role === 'manager' || user?.role === 'cashier') && (
+                <button
+                  onClick={() => setActiveTab('printer')}
+                  className={`w-full px-4 py-3 rounded-lg text-left font-medium transition-colors ${
+                    activeTab === 'printer' ? 'bg-primary-600 text-white' : ''
+                  }`}
+                  style={
+                    activeTab !== 'printer'
+                      ? {
+                          backgroundColor: 'var(--bg-secondary)',
+                          color: 'var(--text-primary)',
+                        }
+                      : { backgroundColor: 'var(--primary)', color: 'white' }
+                  }
+                >
+                  🖨️ Préférences d'impression
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -269,7 +290,7 @@ export default function Profile() {
               border: '1px solid var(--border)',
             }}
           >
-            {activeTab === 'info' ? (
+            {activeTab === 'info' && (
               <div>
                 <h2
                   className="text-xl font-bold mb-6"
@@ -406,7 +427,9 @@ export default function Profile() {
                   </div>
                 </form>
               </div>
-            ) : (
+            )}
+
+            {activeTab === 'password' && (
               <div>
                 <h2
                   className="text-xl font-bold mb-6"
@@ -517,6 +540,129 @@ export default function Profile() {
                     </Button>
                   </div>
                 </form>
+              </div>
+            )}
+
+            {activeTab === 'printer' && (
+              <div>
+                <h2
+                  className="text-xl font-bold mb-6"
+                  style={{ color: 'var(--text-primary)' }}
+                >
+                  Préférences d'impression
+                </h2>
+
+                <div className="space-y-6">
+                  <p style={{ color: 'var(--text-secondary)' }}>
+                    Configurez le comportement d'impression pour les tickets de cuisine et les reçus clients.
+                  </p>
+
+                  {/* Kitchen Ticket Auto-Print Toggle */}
+                  <div
+                    className="p-4 rounded-lg"
+                    style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <h3
+                          className="font-semibold text-lg"
+                          style={{ color: 'var(--text-primary)' }}
+                        >
+                          🍳 Impression automatique - Ticket cuisine
+                        </h3>
+                        <p
+                          className="text-sm mt-1"
+                          style={{ color: 'var(--text-secondary)' }}
+                        >
+                          Imprime automatiquement un ticket cuisine lors de l'approbation d'une commande
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={getPrinterPreferences().autoPrintKitchenOnApproval}
+                          onChange={(e) => {
+                            updatePrinterPreferences({
+                              autoPrintKitchenOnApproval: e.target.checked,
+                            });
+                            showToast(
+                              e.target.checked
+                                ? 'Impression automatique activée'
+                                : 'Impression automatique désactivée',
+                              'success'
+                            );
+                          }}
+                        />
+                        <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Kitchen Ticket Enabled Toggle */}
+                  <div
+                    className="p-4 rounded-lg"
+                    style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <h3
+                          className="font-semibold text-lg"
+                          style={{ color: 'var(--text-primary)' }}
+                        >
+                          🖨️ Activer les tickets cuisine
+                        </h3>
+                        <p
+                          className="text-sm mt-1"
+                          style={{ color: 'var(--text-secondary)' }}
+                        >
+                          Afficher le bouton "Cuisine" pour imprimer les tickets cuisine
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={getPrinterPreferences().kitchenTicketEnabled}
+                          onChange={(e) => {
+                            updatePrinterPreferences({
+                              kitchenTicketEnabled: e.target.checked,
+                            });
+                            showToast(
+                              e.target.checked
+                                ? 'Tickets cuisine activés'
+                                : 'Tickets cuisine désactivés',
+                              'success'
+                            );
+                          }}
+                        />
+                        <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Information Box */}
+                  <div
+                    className="p-4 rounded-lg"
+                    style={{
+                      backgroundColor: '#f0f9ff',
+                      border: '1px solid #bfdbfe',
+                    }}
+                  >
+                    <h4 className="font-semibold text-blue-900 mb-2">ℹ️ Information</h4>
+                    <ul className="text-sm text-blue-800 space-y-1">
+                      <li>• <strong>Ticket cuisine</strong> : Format compact, sans prix, pour la cuisine</li>
+                      <li>• <strong>Reçu client</strong> : Format complet avec prix et informations détaillées</li>
+                      <li>• Les reçus clients se impriment toujours manuellement via le bouton "Reçu"</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             )}
           </div>

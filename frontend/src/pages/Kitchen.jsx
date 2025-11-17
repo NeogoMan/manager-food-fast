@@ -9,6 +9,8 @@ import { kitchen, status, actions, errors, loading, orders as ordersTranslations
 import { createAudioPlayer } from '../utils/audioNotification';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useSettings } from '../contexts/SettingsContext';
+import printerService from '../services/printerService';
 import {
   DndContext,
   closestCenter,
@@ -24,6 +26,7 @@ export default function Kitchen() {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useContext(ThemeContext);
   const { user, loading: authLoading, logout } = useAuth();
+  const { settings } = useSettings();
 
   const [ordersList, setOrdersList] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -292,6 +295,23 @@ export default function Kitchen() {
       setSelectedOrder(order);
     } catch (error) {
       alert(errors.loadOrdersFailed + ': ' + error.message);
+    }
+  }
+
+  // Print kitchen ticket
+  async function printKitchenTicket(orderId) {
+    try {
+      const order = await ordersService.getById(orderId);
+
+      if (!printerService.getConnectionStatus()) {
+        showToast('⚠️ Imprimante non connectée', 'error');
+        return;
+      }
+
+      await printerService.printKitchenTicket(order, settings);
+      showToast('✓ Ticket cuisine imprimé!', 'success');
+    } catch (error) {
+      showToast('⚠️ Erreur d\'impression: ' + error.message, 'error');
     }
   }
 
@@ -762,6 +782,27 @@ export default function Kitchen() {
                       <div className="mb-4 text-xl md:text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
                         Total: <span className="text-primary-600">{formatMAD(order.totalAmount)}</span>
                       </div>
+
+                      {/* Print Kitchen Ticket Button */}
+                      <div className="mb-4">
+                        <Button
+                          size="lg"
+                          variant="secondary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            printKitchenTicket(order.id);
+                          }}
+                          className="w-full text-xl font-bold"
+                          style={{
+                            minHeight: '56px',
+                            backgroundColor: '#8b5cf6',
+                            color: 'white',
+                            border: 'none'
+                          }}
+                        >
+                          🖨️ Imprimer ticket cuisine
+                        </Button>
+                      </div>
                     </div>
                   )}
 
@@ -913,6 +954,27 @@ export default function Kitchen() {
                       <div className="mb-4 text-xl md:text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
                         Total: <span className="text-primary-600">{formatMAD(order.totalAmount)}</span>
                       </div>
+
+                      {/* Print Kitchen Ticket Button */}
+                      <div className="mb-4">
+                        <Button
+                          size="lg"
+                          variant="secondary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            printKitchenTicket(order.id);
+                          }}
+                          className="w-full text-xl font-bold"
+                          style={{
+                            minHeight: '56px',
+                            backgroundColor: '#8b5cf6',
+                            color: 'white',
+                            border: 'none'
+                          }}
+                        >
+                          🖨️ Imprimer ticket cuisine
+                        </Button>
+                      </div>
                     </div>
                   )}
 
@@ -1061,6 +1123,27 @@ export default function Kitchen() {
                       )}
                       <div className="mb-4 text-xl md:text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
                         Total: <span className="text-primary-600">{formatMAD(order.totalAmount)}</span>
+                      </div>
+
+                      {/* Print Kitchen Ticket Button */}
+                      <div className="mb-4">
+                        <Button
+                          size="lg"
+                          variant="secondary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            printKitchenTicket(order.id);
+                          }}
+                          className="w-full text-xl font-bold"
+                          style={{
+                            minHeight: '56px',
+                            backgroundColor: '#8b5cf6',
+                            color: 'white',
+                            border: 'none'
+                          }}
+                        >
+                          🖨️ Imprimer ticket cuisine
+                        </Button>
                       </div>
                     </div>
                   )}

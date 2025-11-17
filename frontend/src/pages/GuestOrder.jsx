@@ -4,7 +4,7 @@ import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { menuService } from '../services/firestore';
 import * as sessionManager from '../utils/sessionManager';
-import { generateUniqueOrderNumber } from '../utils/orderNumberGenerator';
+import { generateSequentialOrderNumber } from '../utils/orderNumberGenerator';
 import styles from './GuestOrder.module.css';
 
 export default function GuestOrder() {
@@ -258,8 +258,8 @@ export default function GuestOrder() {
     try {
       setMenuLoading(true);
 
-      // Generate unique order number
-      const orderNumber = await generateUniqueOrderNumber(restaurant.id);
+      // Generate sequential order number (resets monthly)
+      const orderNumber = await generateSequentialOrderNumber(restaurant.id);
 
       // Generate tracking secret
       const trackingSecret = sessionManager.generateTrackingSecret();

@@ -10,10 +10,15 @@ import { toggleRestaurantOrders, getRestaurantSettings } from '../services/resta
 import { formatMAD } from '../utils/currency';
 import { orders, status, actions, form, errors, loading, approval } from '../utils/translations';
 import { useAuth } from '../contexts/AuthContext';
+import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import { useSettings } from '../contexts/SettingsContext';
 import printerService from '../services/printerService';
+import { createAudioPlayer } from '../utils/audioNotification';
 
 export default function Orders() {
   const { user, loading: authLoading } = useAuth();
+  const { getPrinterPreferences } = useUserPreferences();
+  const { settings } = useSettings();
   const [ordersList, setOrdersList] = useState([]);
   const [pendingApprovalOrders, setPendingApprovalOrders] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
@@ -49,6 +54,10 @@ export default function Orders() {
   // Track highlighted orders (for update animation)
   const [highlightedOrders, setHighlightedOrders] = useState(new Set());
   const previousOrdersRef = useRef({});
+
+  // Audio notification for new orders
+  const audioPlayerRef = useRef(null);
+  const previousPendingCountRef = useRef(0);
 
   // Status filter state
   const [selectedStatus, setSelectedStatus] = useState('all');
@@ -261,6 +270,28 @@ export default function Orders() {
     return () => clearInterval(interval);
   }, []);
 
+  // Initialize audio player for new order notifications
+  useEffect(() => {
+    audioPlayerRef.current = createAudioPlayer('/sounds/kitchen-bell.mp3');
+  }, []);
+
+  // Play sound notification when new pending approval orders arrive
+  useEffect(() => {
+    const currentCount = pendingApprovalOrders.length;
+    const previousCount = previousPendingCountRef.current;
+
+    // Play sound if count increased (new order arrived)
+    if (currentCount > previousCount && previousCount > 0) {
+      // Only play if audio player is initialized
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.play();
+      }
+    }
+
+    // Update previous count
+    previousPendingCountRef.current = currentCount;
+  }, [pendingApprovalOrders]);
+
   // Detect order updates for highlighting animation
   useEffect(() => {
     const newHighlighted = new Set();
@@ -451,35 +482,37 @@ export default function Orders() {
       await ordersService.approve(orderId, userInfo);
       // Real-time listener will automatically update both lists
 
-      // 2. Try to print the order ticket (non-blocking)
-      try {
-        // Get the approved order details
-        const approvedOrder = await ordersService.getById(orderId);
+      // 2. Get the approved order details
+      const approvedOrder = await ordersService.getById(orderId);
 
-        // Check if printer is available
-        if (printerService.getConnectionStatus()) {
-          // Prepare ticket data
-          const clientName = approvedOrder.userId && usersMap[approvedOrder.userId]
-            ? usersMap[approvedOrder.userId].name || usersMap[approvedOrder.userId].username
-            : approvedOrder.customerName || 'Client';
+      // 3. Auto-print kitchen ticket ONLY for staff-created orders (not guest orders)
+      if (!approvedOrder.isGuestOrder) {
+        // Staff-created order - check auto-print preferences
+        const printerPrefs = getPrinterPreferences();
+        if (printerPrefs.autoPrintKitchenOnApproval && printerPrefs.kitchenTicketEnabled) {
+          try {
+            // Check if printer is available
+            if (printerService.getConnectionStatus()) {
+              // Print kitchen ticket (compact, no prices)
+              await printerService.printKitchenTicket(approvedOrder, settings);
 
-          const additionalData = {
-            cashierName: user?.name || user?.username || 'Caissier',
-            clientName: clientName,
-          };
-
-          // Print the ticket
-          await printerService.printOrderTicket(approvedOrder, additionalData);
-
-          // Success: both approved and printed
-          alert('✓ Commande approuvée et ticket imprimé avec succès!');
+              // Success: both approved and kitchen ticket printed
+              alert('✓ Commande approuvée et ticket cuisine imprimé!');
+            } else {
+              // USB printer not connected - order still approved
+              alert('✓ Commande approuvée\n⚠️ Imprimante USB non connectée - Ticket cuisine non imprimé');
+            }
+          } catch (printError) {
+            // Print failed but order is still approved
+            alert('✓ Commande approuvée\n⚠️ Erreur d\'impression cuisine: ' + printError.message);
+          }
         } else {
-          // USB printer not connected - order still approved
-          alert('✓ Commande approuvée\n⚠️ Imprimante USB non connectée - Ticket non imprimé\n\nConnectez l\'imprimante pour imprimer les prochaines commandes.');
+          // No auto-print, just show approval message
+          alert('✓ Commande approuvée avec succès!');
         }
-      } catch (printError) {
-        // Print failed but order is still approved
-        alert('✓ Commande approuvée\n⚠️ Erreur d\'impression: ' + printError.message + '\n\nVérifiez la connexion de l\'imprimante.');
+      } else {
+        // Guest order - no auto-print, just show approval message
+        alert('✓ Commande client approuvée avec succès!');
       }
     } catch (error) {
       // Order approval failed
@@ -501,6 +534,52 @@ export default function Orders() {
       // Real-time listener will automatically update both lists
     } catch (error) {
       alert('Erreur lors du refus: ' + error.message);
+    }
+  }
+
+  // Print kitchen ticket manually
+  async function printKitchenTicket(orderId) {
+    try {
+      const order = await ordersService.getById(orderId);
+
+      if (!printerService.getConnectionStatus()) {
+        alert('⚠️ Imprimante USB non connectée.\n\nVeuillez connecter l\'imprimante pour imprimer les tickets.');
+        return;
+      }
+
+      await printerService.printKitchenTicket(order, settings);
+      alert('✓ Ticket cuisine imprimé avec succès!');
+    } catch (error) {
+      alert('⚠️ Erreur d\'impression: ' + error.message);
+    }
+  }
+
+  // Print client receipt manually
+  async function printClientReceipt(orderId) {
+    try {
+      const order = await ordersService.getById(orderId);
+
+      if (!printerService.getConnectionStatus()) {
+        alert('⚠️ Imprimante USB non connectée.\n\nVeuillez connecter l\'imprimante pour imprimer les reçus.');
+        return;
+      }
+
+      // Prepare receipt data
+      const clientName = order.userId && usersMap[order.userId]
+        ? usersMap[order.userId].name || usersMap[order.userId].username
+        : order.customerName || 'Client';
+
+      const additionalData = {
+        cashierName: user?.name || user?.username || 'Caissier',
+        clientName: clientName,
+        paymentAmount: order.paymentAmount,
+        changeGiven: order.changeGiven,
+      };
+
+      await printerService.printOrderTicket(order, additionalData, settings);
+      alert('✓ Reçu client imprimé avec succès!');
+    } catch (error) {
+      alert('⚠️ Erreur d\'impression: ' + error.message);
     }
   }
 
@@ -671,7 +750,7 @@ export default function Orders() {
       };
 
       // Print the ticket
-      await printerService.printOrderTicket(orderToPrint, additionalData);
+      await printerService.printOrderTicket(orderToPrint, additionalData, settings);
 
       // Success
       alert('✓ Ticket imprimé avec succès!');
@@ -824,7 +903,7 @@ export default function Orders() {
       };
 
       // Print the ticket
-      await printerService.printOrderTicket(orderToPrintConfirm, additionalData);
+      await printerService.printOrderTicket(orderToPrintConfirm, additionalData, settings);
 
       // Success
       alert('✓ Ticket imprimé avec succès!');
@@ -1197,19 +1276,35 @@ export default function Orders() {
                       ✏️ Modifier
                     </Button>
                   )}
-                  {/* Print button for managers and cashiers */}
-                  {(user?.role === 'manager' || user?.role === 'cashier') && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openPrintModal(order.id);
-                      }}
-                      style={{ backgroundColor: '#10b981', color: 'white', border: 'none' }}
-                    >
-                      🖨️ Imprimer
-                    </Button>
+                  {/* Print buttons for managers and cashiers - only show if setting enabled */}
+                  {(user?.role === 'manager' || user?.role === 'cashier') &&
+                   settings.ticket.showPrinterButtons && (
+                    <>
+                      {/* Kitchen Ticket Button */}
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          printKitchenTicket(order.id);
+                        }}
+                        style={{ backgroundColor: '#8b5cf6', color: 'white', border: 'none' }}
+                      >
+                        🍳 Cuisine
+                      </Button>
+                      {/* Client Receipt Button */}
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          printClientReceipt(order.id);
+                        }}
+                        style={{ backgroundColor: '#10b981', color: 'white', border: 'none' }}
+                      >
+                        📄 Reçu
+                      </Button>
+                    </>
                   )}
                   {order.status === 'pending' && (
                     <Button

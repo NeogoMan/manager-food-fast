@@ -16,9 +16,7 @@ export const useSettings = () => {
 // Default settings structure
 const defaultSettings = {
   ticket: {
-    kitchenTicketEnabled: true,
-    customerReceiptEnabled: true,
-    autoPrintOnOrder: false,
+    showPrinterButtons: true,
     showTVA: true,
     tvaRate: 20,
     showCashierName: true,
@@ -28,25 +26,7 @@ const defaultSettings = {
       showDateTime: true,
       showNotes: true,
       fontSize: 'medium'
-    },
-    orderNumberFormat: 'sequential'
-  },
-  printer: {
-    vendorId: '0x0000',
-    productId: '0x0000',
-    paperWidth: 48,
-    encoding: 'GB18030',
-    autoCut: true
-  },
-  kitchenDisplay: {
-    fontSize: 'large',
-    showCustomerNotes: true,
-    groupByCategory: false,
-    highlightUrgent: true
-  },
-  notifications: {
-    soundEnabled: true,
-    soundVolume: 80
+    }
   }
 };
 
@@ -156,27 +136,12 @@ export const SettingsProvider = ({ children }) => {
     return updateSettings({ ticket: { ...settings.ticket, ...ticketUpdates } });
   };
 
-  const updatePrinterSettings = async (printerUpdates) => {
-    return updateSettings({ printer: { ...settings.printer, ...printerUpdates } });
-  };
-
-  const updateKitchenDisplaySettings = async (kitchenDisplayUpdates) => {
-    return updateSettings({ kitchenDisplay: { ...settings.kitchenDisplay, ...kitchenDisplayUpdates } });
-  };
-
-  const updateNotificationSettings = async (notificationUpdates) => {
-    return updateSettings({ notifications: { ...settings.notifications, ...notificationUpdates } });
-  };
-
   const value = {
     settings,
     loading,
     error,
     updateSettings,
     updateTicketSettings,
-    updatePrinterSettings,
-    updateKitchenDisplaySettings,
-    updateNotificationSettings,
     defaultSettings
   };
 

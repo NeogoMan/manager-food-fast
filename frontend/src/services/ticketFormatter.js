@@ -11,10 +11,13 @@ import printerConfig from '../config/printerConfig';
  * @param {Object} additionalData - Additional data (cashier name, etc.)
  * @returns {string} Formatted ticket text
  */
-export function formatOrderTicket(order, additionalData = {}) {
+export function formatOrderTicket(order, additionalData = {}, settings = {}) {
   const { paper, restaurant, ticket } = printerConfig;
   const width = paper.width;
   const lines = [];
+
+  // Use settings if provided, otherwise fall back to printerConfig
+  const useSettings = settings?.ticket || {};
 
   // Helper functions for text formatting
   const centerText = (text) => {
@@ -72,7 +75,8 @@ export function formatOrderTicket(order, additionalData = {}) {
   lines.push(`Client: ${clientName}`);
 
   // Cashier name (if provided and enabled)
-  if (ticket.printCashierName && additionalData.cashierName) {
+  const showCashierName = useSettings.showCashierName !== undefined ? useSettings.showCashierName : ticket.printCashierName;
+  if (showCashierName && additionalData.cashierName) {
     lines.push(`Caissier: ${additionalData.cashierName}`);
   }
 
@@ -99,7 +103,8 @@ export function formatOrderTicket(order, additionalData = {}) {
       lines.push(priceLineFormatted);
 
       // Notes (if any)
-      if (item.notes && ticket.printOrderNotes) {
+      const showNotes = useSettings.kitchenTicketFormat?.showNotes !== undefined ? useSettings.kitchenTicketFormat.showNotes : ticket.printOrderNotes;
+      if (item.notes && showNotes) {
         lines.push(`   Note: ${item.notes}`);
       }
 
@@ -120,17 +125,20 @@ export function formatOrderTicket(order, additionalData = {}) {
   lines.push(twoColumn('Sous-total:', formatPrice(subtotal)));
 
   // Tax (if enabled)
-  if (ticket.showTax && restaurant.taxRate > 0) {
-    const tax = subtotal * restaurant.taxRate;
-    const taxLabel = `TVA (${(restaurant.taxRate * 100).toFixed(0)}%):`;
+  const showTVA = useSettings.showTVA !== undefined ? useSettings.showTVA : ticket.showTax;
+  const tvaRate = useSettings.tvaRate !== undefined ? (useSettings.tvaRate / 100) : restaurant.taxRate;
+
+  if (showTVA && tvaRate > 0) {
+    const tax = subtotal * tvaRate;
+    const taxLabel = `TVA (${(tvaRate * 100).toFixed(0)}%):`;
     lines.push(twoColumn(taxLabel, formatPrice(tax)));
   }
 
   lines.push('-'.repeat(width));
 
   // Total
-  const total = ticket.showTax && restaurant.taxRate > 0
-    ? subtotal * (1 + restaurant.taxRate)
+  const total = showTVA && tvaRate > 0
+    ? subtotal * (1 + tvaRate)
     : subtotal;
   lines.push(twoColumn('TOTAL:', formatPrice(total)));
 
@@ -140,7 +148,11 @@ export function formatOrderTicket(order, additionalData = {}) {
   // ============================================
   // FOOTER SECTION
   // ============================================
-  ticket.thankYouMessage.forEach((msg) => {
+  const footerMessage = useSettings.footerMessage !== undefined ? useSettings.footerMessage : ticket.thankYouMessage;
+
+  // Handle both string and array formats
+  const footerLines = typeof footerMessage === 'string' ? [footerMessage] : footerMessage;
+  footerLines.forEach((msg) => {
     lines.push(centerText(msg));
   });
 
@@ -194,7 +206,132 @@ export function formatTestTicket() {
   return formatOrderTicket(testOrder, additionalData);
 }
 
+/**
+ * Format order into a kitchen ticket (compact format for cooks)
+ * @param {Object} order - Order object from Firestore
+ * @param {Object} settings - Restaurant settings
+ * @returns {string} Formatted kitchen ticket text
+ */
+export function formatKitchenTicket(order, settings = {}) {
+  const lines = [];
+
+  // Apply fontSize setting (small=30, medium=35, large=40)
+  const fontSize = settings?.ticket?.kitchenTicketFormat?.fontSize || 'medium';
+  const width = fontSize === 'small' ? 30 : fontSize === 'large' ? 40 : 35;
+
+  // Helper functions
+  const centerText = (text) => {
+    const padding = Math.floor((width - text.length) / 2);
+    return ' '.repeat(Math.max(0, padding)) + text;
+  };
+
+  const separator = () => '='.repeat(width);
+  const lightSeparator = () => '-'.repeat(width);
+
+  const formatDateTime = (date) => {
+    if (!date) return '';
+    const d = date instanceof Date ? date : new Date(date);
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
+  // ============================================
+  // HEADER - MINIMAL
+  // ============================================
+  lines.push(separator());
+  lines.push('');
+
+  // Large order number (conditionally shown based on settings)
+  const showOrderNumber = settings?.ticket?.kitchenTicketFormat?.showOrderNumber !== false;
+  if (showOrderNumber) {
+    lines.push(centerText('COMMANDE'));
+    lines.push(centerText(`#${order.orderNumber || order.id.slice(-4).toUpperCase()}`));
+    lines.push('');
+  }
+  lines.push(separator());
+  lines.push('');
+
+  // Time (conditionally shown based on settings)
+  const showDateTime = settings?.ticket?.kitchenTicketFormat?.showDateTime !== false;
+  if (showDateTime) {
+    lines.push(`Heure: ${formatDateTime(order.createdAt)}`);
+    lines.push('');
+  }
+
+  // Order type and table info
+  if (order.orderType) {
+    const typeLabel = order.orderType === 'dine-in' ? 'Sur place' :
+                      order.orderType === 'takeout' ? 'A emporter' :
+                      'Enlèvement';
+    lines.push(`Type: ${typeLabel}`);
+  }
+
+  if (order.tableNumber) {
+    lines.push(`Table: ${order.tableNumber}`);
+  }
+
+  if (order.isGuestOrder) {
+    lines.push('Self-Service');
+  }
+
+  lines.push('');
+  lines.push(lightSeparator());
+  lines.push('');
+
+  // ============================================
+  // ITEMS - NO PRICES
+  // ============================================
+  lines.push('ARTICLES:');
+  lines.push('');
+
+  // Check if notes should be shown
+  const showNotes = settings?.ticket?.kitchenTicketFormat?.showNotes !== false;
+
+  if (order.items && order.items.length > 0) {
+    order.items.forEach((item, index) => {
+      // Item line: quantity x name
+      const itemLine = `${item.quantity}x ${item.name}`;
+      lines.push(itemLine);
+
+      // Notes (conditionally shown based on settings)
+      if (showNotes && item.notes) {
+        const notesLines = item.notes.match(/.{1,30}/g) || [item.notes];
+        notesLines.forEach((noteLine) => {
+          lines.push(`   ** ${noteLine}`);
+        });
+      }
+
+      // Add space between items except last one
+      if (index < order.items.length - 1) {
+        lines.push('');
+      }
+    });
+  } else {
+    lines.push(centerText('Aucun article'));
+  }
+
+  lines.push('');
+  lines.push(separator());
+  lines.push('');
+
+  // ============================================
+  // FOOTER
+  // ============================================
+  // Total items count
+  const totalItems = order.items ? order.items.reduce((sum, item) => sum + item.quantity, 0) : 0;
+  lines.push(centerText(`Total: ${totalItems} article${totalItems > 1 ? 's' : ''}`));
+
+  lines.push('');
+  lines.push(separator());
+  lines.push('');
+
+  // Join all lines with newline
+  return lines.join('\n');
+}
+
 export default {
   formatOrderTicket,
+  formatKitchenTicket,
   formatTestTicket,
 };

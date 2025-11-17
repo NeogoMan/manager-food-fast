@@ -1,60 +1,111 @@
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 /**
- * Generate a random 4-digit order number (0001-9999)
+ * Generate a sequential order number that resets monthly
+ * Format: 4-digit padded number (0001-9999)
+ * Resets: First day of each month
+ * Scope: Per restaurant
+ *
+ * @param {string} restaurantId - Restaurant ID
+ * @returns {Promise<string>} Sequential order number (e.g., "0001", "0047", "1234")
  */
-function generateRandomNumber() {
-  const num = Math.floor(Math.random() * 10000);
-  return num.toString().padStart(4, '0');
-}
-
-/**
- * Check if an order number already exists in Firestore
- */
-async function orderNumberExists(restaurantId, orderNumber) {
+export async function generateSequentialOrderNumber(restaurantId) {
   try {
-    const ordersRef = collection(db, 'orders');
-    const q = query(
-      ordersRef,
-      where('restaurantId', '==', restaurantId),
-      where('orderNumber', '==', orderNumber)
-    );
-    const snapshot = await getDocs(q);
-    return !snapshot.empty;
+    // Get current month in YYYY-MM format
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    // Counter document ID: restaurantId + month
+    const counterId = `${restaurantId}_${currentMonth}`;
+    const counterRef = doc(db, 'order_counters', counterId);
+
+    // Use Firestore transaction for atomic increment
+    const orderNumber = await runTransaction(db, async (transaction) => {
+      const counterDoc = await transaction.get(counterRef);
+
+      if (!counterDoc.exists()) {
+        // New month or first order - start from 1
+        const initialData = {
+          restaurantId,
+          month: currentMonth,
+          counter: 1,
+          lastReset: serverTimestamp(),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        };
+
+        transaction.set(counterRef, initialData);
+        console.log(`✅ Created new monthly counter for ${restaurantId} - ${currentMonth}: #0001`);
+        return 1;
+      } else {
+        // Increment existing counter
+        const currentCounter = counterDoc.data().counter || 0;
+        const newCounter = currentCounter + 1;
+
+        // Check if we've exceeded 9999 (monthly limit)
+        if (newCounter > 9999) {
+          throw new Error('Monthly order limit reached (9999 orders). Counter will reset next month.');
+        }
+
+        transaction.update(counterRef, {
+          counter: newCounter,
+          updatedAt: serverTimestamp(),
+        });
+
+        console.log(`✅ Generated order number for ${restaurantId}: #${String(newCounter).padStart(4, '0')}`);
+        return newCounter;
+      }
+    });
+
+    // Format as 4-digit padded string
+    return String(orderNumber).padStart(4, '0');
+
   } catch (error) {
-    console.error('Error checking order number:', error);
-    return false;
+    console.error('❌ Error generating sequential order number:', error);
+
+    // Fallback: Use timestamp-based 4-digit number
+    const fallback = (Date.now() % 10000).toString().padStart(4, '0');
+    console.warn(`⚠️ Using fallback order number: ${fallback}`);
+    return fallback;
   }
-}
-
-/**
- * Generate a unique 4-digit order number for a restaurant
- * Retries up to maxRetries times if collision occurs
- */
-export async function generateUniqueOrderNumber(restaurantId, maxRetries = 10) {
-  for (let i = 0; i < maxRetries; i++) {
-    const orderNumber = generateRandomNumber();
-
-    const exists = await orderNumberExists(restaurantId, orderNumber);
-
-    if (!exists) {
-      console.log(`✅ Generated unique order number: ${orderNumber}`);
-      return orderNumber;
-    }
-
-    console.log(`⚠️ Order number ${orderNumber} already exists, retrying...`);
-  }
-
-  // Fallback: if all retries fail, use timestamp-based number
-  const fallback = (Date.now() % 10000).toString().padStart(4, '0');
-  console.warn(`⚠️ Using fallback order number: ${fallback}`);
-  return fallback;
 }
 
 /**
  * Format order number for display (adds # prefix)
+ * @param {string} orderNumber - Order number (e.g., "0001")
+ * @returns {string} Formatted order number (e.g., "#0001")
  */
 export function formatOrderNumber(orderNumber) {
   return `#${orderNumber}`;
+}
+
+/**
+ * Get current month's counter status for a restaurant
+ * @param {string} restaurantId - Restaurant ID
+ * @returns {Promise<{month: string, counter: number, lastReset: Date} | null>}
+ */
+export async function getCurrentMonthCounter(restaurantId) {
+  try {
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const counterId = `${restaurantId}_${currentMonth}`;
+
+    const counterRef = doc(db, 'order_counters', counterId);
+    const counterSnap = await counterRef.get();
+
+    if (!counterSnap.exists()) {
+      return null;
+    }
+
+    const data = counterSnap.data();
+    return {
+      month: data.month,
+      counter: data.counter,
+      lastReset: data.lastReset?.toDate(),
+    };
+  } catch (error) {
+    console.error('Error getting current month counter:', error);
+    return null;
+  }
 }
