@@ -1505,7 +1505,7 @@ export const createRestaurant = onCall(async (request) => {
   }
 
   // Validate plan
-  const validPlans = ["basic", "pro", "enterprise"];
+  const validPlans = ["standard", "basic", "pro", "enterprise"];
   if (!validPlans.includes(plan)) {
     throw new HttpsError("invalid-argument", "Invalid plan");
   }
@@ -1688,7 +1688,7 @@ export const updateRestaurant = onCall(async (request) => {
 
     // Update plan if provided
     if (updates.plan) {
-      const validPlans = ["basic", "pro", "enterprise"];
+      const validPlans = ["standard", "basic", "pro", "enterprise"];
       if (!validPlans.includes(updates.plan)) {
         throw new HttpsError("invalid-argument", "Invalid plan");
       }
@@ -2075,39 +2075,16 @@ export const updateOrder = onCall(async (request) => {
 /**
  * Helper function: Get features by plan
  */
-function getFeaturesByPlan(plan) {
-  const features = {
-    basic: {
-      analyticsEnabled: false,
-      mobileAppEnabled: false,
-      multiLocationEnabled: false,
-      customBrandingEnabled: false,
-      apiAccessEnabled: false,
-      prioritySupportEnabled: false,
-      maxStaffUsers: 3,
-      maxOrders: -1,
-    },
-    pro: {
-      analyticsEnabled: true,
-      mobileAppEnabled: true,
-      multiLocationEnabled: false,
-      customBrandingEnabled: false,
-      apiAccessEnabled: false,
-      prioritySupportEnabled: true,
-      maxStaffUsers: -1,
-      maxOrders: -1,
-    },
-    enterprise: {
-      analyticsEnabled: true,
-      mobileAppEnabled: true,
-      multiLocationEnabled: true,
-      customBrandingEnabled: true,
-      apiAccessEnabled: true,
-      prioritySupportEnabled: true,
-      maxStaffUsers: -1,
-      maxOrders: -1,
-    },
+function getFeaturesByPlan() {
+  // Single flat-rate plan — all features enabled for every restaurant
+  return {
+    analyticsEnabled: true,
+    mobileAppEnabled: true,
+    multiLocationEnabled: true,
+    customBrandingEnabled: true,
+    apiAccessEnabled: true,
+    prioritySupportEnabled: true,
+    maxStaffUsers: -1,
+    maxOrders: -1,
   };
-
-  return features[plan] || features.basic;
 }

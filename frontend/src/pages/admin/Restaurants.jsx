@@ -48,6 +48,8 @@ const Restaurants = () => {
 
   const getPlanBadgeColor = (plan) => {
     switch (plan) {
+      case 'standard':
+        return '#10b981';
       case 'basic':
         return '#94a3b8';
       case 'pro':

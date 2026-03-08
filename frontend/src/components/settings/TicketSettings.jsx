@@ -65,6 +65,33 @@ const TicketSettings = ({ disabled = false }) => {
     }
   };
 
+  const handleLogoUrlChange = async (e) => {
+    const url = e.target.value;
+    console.log('Saving logo URL:', url);
+    try {
+      setIsSaving(true);
+      await updateTicketSettings({ logoUrl: url });
+      console.log('Logo URL saved successfully');
+    } catch (error) {
+      console.error('Error updating logo URL:', error);
+      alert(error.message || 'Erreur lors de la mise à jour de l\'URL du logo');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleLogoWidthChange = async (width) => {
+    try {
+      setIsSaving(true);
+      await updateTicketSettings({ logoWidth: width });
+    } catch (error) {
+      console.error('Error updating logo width:', error);
+      alert(error.message || 'Erreur lors de la mise à jour de la largeur du logo');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleFontSizeChange = async (fontSize) => {
     try {
       setIsSaving(true);
@@ -206,6 +233,56 @@ const TicketSettings = ({ disabled = false }) => {
           onChange={(value) => handleToggle('showCashierName', value)}
           disabled={disabled || isSaving}
         />
+
+        <ToggleSwitch
+          label="Afficher le logo du restaurant"
+          description="Afficher le logo en haut des reçus clients"
+          checked={settings.ticket.showLogo}
+          onChange={(value) => handleToggle('showLogo', value)}
+          disabled={disabled || isSaving}
+        />
+
+        {settings.ticket.showLogo && (
+          <>
+            <div className="py-3 pl-4 border-l-2 border-orange-500">
+              <label className="block text-sm font-medium text-gray-900 dark:text-white mb-1">
+                URL du logo
+              </label>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                Adresse URL complète du logo (PNG ou JPG)
+              </p>
+              <input
+                type="url"
+                value={settings.ticket.logoUrl}
+                onChange={handleLogoUrlChange}
+                disabled={disabled || isSaving}
+                placeholder="https://example.com/logo.png"
+                className="block w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                ℹ️ Pour de meilleurs résultats, utilisez un logo de 200x100px avec un fond blanc et un contraste élevé
+              </p>
+              <p className="text-xs text-orange-500 dark:text-orange-400 mt-1">
+                ⚠️ Certaines images peuvent être bloquées par CORS. Pour une fiabilité maximale, hébergez votre logo sur Firebase Storage, Imgur, ou Cloudinary.
+              </p>
+            </div>
+
+            <div className="pl-4 border-l-2 border-orange-500">
+              <NumberInput
+                label="Largeur du logo"
+                description="Largeur du logo en pixels (100-384)"
+                value={settings.ticket.logoWidth}
+                onChange={handleLogoWidthChange}
+                min={100}
+                max={384}
+                step={10}
+                suffix="px"
+                disabled={disabled || isSaving}
+              />
+            </div>
+          </>
+        )}
+
         <div className="py-3">
           <label className="block text-sm font-medium text-gray-900 dark:text-white mb-1">
             Message de pied de page

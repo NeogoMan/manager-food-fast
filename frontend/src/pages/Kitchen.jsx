@@ -26,7 +26,7 @@ export default function Kitchen() {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useContext(ThemeContext);
   const { user, loading: authLoading, logout } = useAuth();
-  const { settings } = useSettings();
+  const { settings, restaurant } = useSettings();
 
   const [ordersList, setOrdersList] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -308,7 +308,7 @@ export default function Kitchen() {
         return;
       }
 
-      await printerService.printKitchenTicket(order, settings);
+      await printerService.printKitchenTicket(order, settings, restaurant);
       showToast('✓ Ticket cuisine imprimé!', 'success');
     } catch (error) {
       showToast('⚠️ Erreur d\'impression: ' + error.message, 'error');

@@ -9,12 +9,17 @@ import printerConfig from '../config/printerConfig';
  * Format order into a printable ticket
  * @param {Object} order - Order object from Firestore
  * @param {Object} additionalData - Additional data (cashier name, etc.)
+ * @param {Object} settings - Restaurant settings
+ * @param {Object} restaurantInfo - Restaurant information (name, address, phone)
  * @returns {string} Formatted ticket text
  */
-export function formatOrderTicket(order, additionalData = {}, settings = {}) {
-  const { paper, restaurant, ticket } = printerConfig;
+export function formatOrderTicket(order, additionalData = {}, settings = {}, restaurantInfo = null) {
+  const { paper, restaurant: configRestaurant, ticket } = printerConfig;
   const width = paper.width;
   const lines = [];
+
+  // Use provided restaurant info or fall back to config
+  const restaurant = restaurantInfo || configRestaurant;
 
   // Use settings if provided, otherwise fall back to printerConfig
   const useSettings = settings?.ticket || {};
@@ -210,13 +215,14 @@ export function formatTestTicket() {
  * Format order into a kitchen ticket (compact format for cooks)
  * @param {Object} order - Order object from Firestore
  * @param {Object} settings - Restaurant settings
+ * @param {Object} restaurantInfo - Restaurant information (optional, not used in kitchen tickets)
  * @returns {string} Formatted kitchen ticket text
  */
-export function formatKitchenTicket(order, settings = {}) {
+export function formatKitchenTicket(order, settings = {}, restaurantInfo = null) {
   const lines = [];
 
-  // Apply fontSize setting (small=30, medium=35, large=40)
-  const fontSize = settings?.ticket?.kitchenTicketFormat?.fontSize || 'medium';
+  // Apply fontSize setting (small=30, medium=35, large=40) - default to small for compact tickets
+  const fontSize = settings?.ticket?.kitchenTicketFormat?.fontSize || 'small';
   const width = fontSize === 'small' ? 30 : fontSize === 'large' ? 40 : 35;
 
   // Helper functions
@@ -240,33 +246,26 @@ export function formatKitchenTicket(order, settings = {}) {
   // HEADER - MINIMAL
   // ============================================
   lines.push(separator());
-  lines.push('');
 
   // Large order number (conditionally shown based on settings)
   const showOrderNumber = settings?.ticket?.kitchenTicketFormat?.showOrderNumber !== false;
   if (showOrderNumber) {
     lines.push(centerText('COMMANDE'));
     lines.push(centerText(`#${order.orderNumber || order.id.slice(-4).toUpperCase()}`));
-    lines.push('');
   }
   lines.push(separator());
-  lines.push('');
 
   // Time (conditionally shown based on settings)
   const showDateTime = settings?.ticket?.kitchenTicketFormat?.showDateTime !== false;
   if (showDateTime) {
     lines.push(`Heure: ${formatDateTime(order.createdAt)}`);
-    lines.push('');
   }
 
-  // Order type and table info
-  if (order.orderType) {
-    const typeLabel = order.orderType === 'dine-in' ? 'Sur place' :
-                      order.orderType === 'takeout' ? 'A emporter' :
-                      'Enlèvement';
-    lines.push(`Type: ${typeLabel}`);
-  }
+  // Client name
+  const clientName = order.customerName || order.guestName || 'Client';
+  lines.push(`Client: ${clientName}`);
 
+  // Table info (if present)
   if (order.tableNumber) {
     lines.push(`Table: ${order.tableNumber}`);
   }
@@ -275,15 +274,22 @@ export function formatKitchenTicket(order, settings = {}) {
     lines.push('Self-Service');
   }
 
-  lines.push('');
   lines.push(lightSeparator());
-  lines.push('');
+
+  // Order-level notes (if present)
+  if (order.notes) {
+    lines.push('NOTE COMMANDE:');
+    const orderNotesLines = order.notes.match(/.{1,30}/g) || [order.notes];
+    orderNotesLines.forEach((noteLine) => {
+      lines.push(`** ${noteLine}`);
+    });
+    lines.push(lightSeparator());
+  }
 
   // ============================================
   // ITEMS - NO PRICES
   // ============================================
   lines.push('ARTICLES:');
-  lines.push('');
 
   // Check if notes should be shown
   const showNotes = settings?.ticket?.kitchenTicketFormat?.showNotes !== false;
@@ -311,9 +317,7 @@ export function formatKitchenTicket(order, settings = {}) {
     lines.push(centerText('Aucun article'));
   }
 
-  lines.push('');
   lines.push(separator());
-  lines.push('');
 
   // ============================================
   // FOOTER
@@ -322,9 +326,7 @@ export function formatKitchenTicket(order, settings = {}) {
   const totalItems = order.items ? order.items.reduce((sum, item) => sum + item.quantity, 0) : 0;
   lines.push(centerText(`Total: ${totalItems} article${totalItems > 1 ? 's' : ''}`));
 
-  lines.push('');
   lines.push(separator());
-  lines.push('');
 
   // Join all lines with newline
   return lines.join('\n');

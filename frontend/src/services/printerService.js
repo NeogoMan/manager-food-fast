@@ -5,6 +5,7 @@
 
 import printerConfig from '../config/printerConfig';
 import { formatOrderTicket, formatKitchenTicket, formatTestTicket } from './ticketFormatter';
+import { processImageForPrinter } from './imageProcessor';
 
 // LocalStorage keys
 const STORAGE_KEYS = {
@@ -100,6 +101,9 @@ class PrinterService {
     CUT_FULL: [0x1D, 0x56, 0x00],
     CUT_PARTIAL: [0x1D, 0x56, 0x01],
     SELECT_CODEPAGE: (n) => [0x1B, 0x74, n],
+    // Image printing command (GS v 0) - Print raster bit image
+    // mode: 0 = normal, 1 = double width, 2 = double height, 3 = quadruple
+    PRINT_RASTER_IMAGE: (mode, xL, xH, yL, yH) => [0x1D, 0x76, 0x30, mode, xL, xH, yL, yH],
   };
 
   encodeText(text) {
@@ -489,19 +493,126 @@ class PrinterService {
     }
   }
 
+  // ============================================
+  // IMAGE PRINTING
+  // ============================================
+
+  /**
+   * Print bitmap image bytes
+   * @param {Uint8Array} bitmapData - Monochrome bitmap data
+   * @param {number} width - Image width in pixels
+   * @param {number} height - Image height in pixels
+   */
+  async printImageBytes(bitmapData, width, height) {
+    try {
+      const commands = [];
+
+      // Initialize printer
+      commands.push(...PrinterService.Commands.INIT);
+      commands.push(...PrinterService.Commands.ALIGN_CENTER);
+
+      // Calculate dimensions for ESC/POS command
+      // Width in bytes (each byte = 8 pixels)
+      const widthBytes = Math.ceil(width / 8);
+      const xL = widthBytes & 0xFF;
+      const xH = (widthBytes >> 8) & 0xFF;
+      const yL = height & 0xFF;
+      const yH = (height >> 8) & 0xFF;
+
+      // Print raster image command (GS v 0)
+      // Mode 0 = normal size
+      commands.push(...PrinterService.Commands.PRINT_RASTER_IMAGE(0, xL, xH, yL, yH));
+
+      // Append bitmap data
+      commands.push(...Array.from(bitmapData));
+
+      // Feed some lines after image
+      commands.push(...PrinterService.Commands.LINE_FEED);
+      commands.push(...PrinterService.Commands.LINE_FEED);
+
+      // Reset alignment
+      commands.push(...PrinterService.Commands.ALIGN_LEFT);
+
+      // Send to printer
+      const printData = new Uint8Array(commands);
+      await this.sendToPrinter(printData);
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error printing image:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Print logo from URL
+   * @param {string} url - Logo image URL
+   * @param {number} maxWidth - Maximum logo width in pixels (default 200)
+   */
+  async printLogoFromUrl(url, maxWidth = 200) {
+    try {
+      console.log('Loading and processing logo:', url);
+
+      // Process image (load, resize, convert to monochrome)
+      const imageData = await processImageForPrinter(url, maxWidth);
+
+      console.log(`Logo processed: ${imageData.width}x${imageData.height}px`);
+
+      // Print the bitmap
+      await this.printImageBytes(imageData.data, imageData.width, imageData.height);
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error printing logo:', error);
+      // Don't throw - allow printing to continue without logo
+      return { success: false, error: error.message };
+    }
+  }
+
+  // ============================================
+  // TICKET PRINTING
+  // ============================================
+
   /**
    * Print order ticket (client receipt)
    */
-  async printOrderTicket(order, additionalData = {}, settings = {}) {
+  async printOrderTicket(order, additionalData = {}, settings = {}, restaurantInfo = null) {
     try {
-
-      const ticketText = formatOrderTicket(order, additionalData, settings);
-
-      const printData = this.buildPrintData(ticketText);
-
       if (!this.getConnectionStatus()) {
         throw new Error('Imprimante non connectée');
       }
+
+      // Debug logging for logo settings
+      console.log('=== LOGO DEBUG ===');
+      console.log('Settings object:', settings);
+      console.log('settings.ticket:', settings?.ticket);
+      console.log('showLogo:', settings?.ticket?.showLogo);
+      console.log('logoUrl:', settings?.ticket?.logoUrl);
+      console.log('logoWidth:', settings?.ticket?.logoWidth);
+
+      // Print logo if enabled
+      const showLogo = settings?.ticket?.showLogo && settings?.ticket?.logoUrl;
+      console.log('showLogo condition result:', showLogo);
+
+      if (showLogo) {
+        try {
+          console.log('Attempting to print logo...');
+          await this.printLogoFromUrl(
+            settings.ticket.logoUrl,
+            settings.ticket.logoWidth || 200
+          );
+          console.log('✓ Logo printed successfully');
+        } catch (logoError) {
+          console.error('✗ Logo printing failed, continuing with ticket:', logoError);
+          // Continue with ticket printing even if logo fails
+        }
+      } else {
+        console.log('Logo printing skipped - showLogo is false or logoUrl is empty');
+      }
+
+      // Print ticket text
+      const ticketText = formatOrderTicket(order, additionalData, settings, restaurantInfo);
+      const printData = this.buildPrintData(ticketText);
       await this.sendToPrinter(printData);
 
       return { success: true, message: 'Ticket imprimé avec succès' };
@@ -513,10 +624,10 @@ class PrinterService {
   /**
    * Print kitchen ticket (compact, no prices, large order number)
    */
-  async printKitchenTicket(order, settings = {}) {
+  async printKitchenTicket(order, settings = {}, restaurantInfo = null) {
     try {
 
-      const kitchenTicketText = formatKitchenTicket(order, settings);
+      const kitchenTicketText = formatKitchenTicket(order, settings, restaurantInfo);
 
       const printData = this.buildKitchenPrintData(kitchenTicketText);
 

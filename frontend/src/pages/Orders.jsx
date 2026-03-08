@@ -18,7 +18,7 @@ import { createAudioPlayer } from '../utils/audioNotification';
 export default function Orders() {
   const { user, loading: authLoading } = useAuth();
   const { getPrinterPreferences } = useUserPreferences();
-  const { settings } = useSettings();
+  const { settings, restaurant } = useSettings();
   const [ordersList, setOrdersList] = useState([]);
   const [pendingApprovalOrders, setPendingApprovalOrders] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
@@ -494,7 +494,7 @@ export default function Orders() {
             // Check if printer is available
             if (printerService.getConnectionStatus()) {
               // Print kitchen ticket (compact, no prices)
-              await printerService.printKitchenTicket(approvedOrder, settings);
+              await printerService.printKitchenTicket(approvedOrder, settings, restaurant);
 
               // Success: both approved and kitchen ticket printed
               alert('✓ Commande approuvée et ticket cuisine imprimé!');
@@ -547,7 +547,7 @@ export default function Orders() {
         return;
       }
 
-      await printerService.printKitchenTicket(order, settings);
+      await printerService.printKitchenTicket(order, settings, restaurant);
       alert('✓ Ticket cuisine imprimé avec succès!');
     } catch (error) {
       alert('⚠️ Erreur d\'impression: ' + error.message);
@@ -565,9 +565,7 @@ export default function Orders() {
       }
 
       // Prepare receipt data
-      const clientName = order.userId && usersMap[order.userId]
-        ? usersMap[order.userId].name || usersMap[order.userId].username
-        : order.customerName || 'Client';
+      const clientName = getClientName(order);
 
       const additionalData = {
         cashierName: user?.name || user?.username || 'Caissier',
@@ -576,7 +574,7 @@ export default function Orders() {
         changeGiven: order.changeGiven,
       };
 
-      await printerService.printOrderTicket(order, additionalData, settings);
+      await printerService.printOrderTicket(order, additionalData, settings, restaurant);
       alert('✓ Reçu client imprimé avec succès!');
     } catch (error) {
       alert('⚠️ Erreur d\'impression: ' + error.message);
@@ -740,9 +738,7 @@ export default function Orders() {
       }
 
       // Prepare ticket data
-      const clientName = orderToPrint.userId && usersMap[orderToPrint.userId]
-        ? usersMap[orderToPrint.userId].name || usersMap[orderToPrint.userId].username
-        : orderToPrint.customerName || 'Client';
+      const clientName = getClientName(orderToPrint);
 
       const additionalData = {
         cashierName: user?.name || user?.username || 'Caissier',
@@ -750,7 +746,7 @@ export default function Orders() {
       };
 
       // Print the ticket
-      await printerService.printOrderTicket(orderToPrint, additionalData, settings);
+      await printerService.printOrderTicket(orderToPrint, additionalData, settings, restaurant);
 
       // Success
       alert('✓ Ticket imprimé avec succès!');
@@ -891,9 +887,7 @@ export default function Orders() {
       }
 
       // Prepare ticket data
-      const clientName = orderToPrintConfirm.userId && usersMap[orderToPrintConfirm.userId]
-        ? usersMap[orderToPrintConfirm.userId].name || usersMap[orderToPrintConfirm.userId].username
-        : orderToPrintConfirm.customerName || 'Client';
+      const clientName = getClientName(orderToPrintConfirm);
 
       const additionalData = {
         cashierName: user?.name || user?.username || 'Caissier',
@@ -903,7 +897,7 @@ export default function Orders() {
       };
 
       // Print the ticket
-      await printerService.printOrderTicket(orderToPrintConfirm, additionalData, settings);
+      await printerService.printOrderTicket(orderToPrintConfirm, additionalData, settings, restaurant);
 
       // Success
       alert('✓ Ticket imprimé avec succès!');

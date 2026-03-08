@@ -62,6 +62,15 @@ export const translations = {
     customerName: 'Nom du client',
     notes: 'Notes',
     specialInstructions: 'Instructions spéciales',
+    item: 'l\'article',
+    image: 'Image',
+    uploadImage: 'Ajouter une image',
+    changeImage: 'Changer l\'image',
+    removeImage: 'Supprimer l\'image',
+    imageUploading: 'Téléchargement en cours...',
+    imageTypeError: 'Format non supporté. Utilisez JPG, PNG, WebP ou GIF.',
+    imageSizeError: 'Le fichier est trop volumineux (max 5 Mo).',
+    imageUploadError: 'Erreur lors du téléchargement de l\'image',
   },
 
   // Categories

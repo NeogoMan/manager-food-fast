@@ -11,7 +11,7 @@ const CreateRestaurant = () => {
     email: '',
     phone: '',
     address: '',
-    plan: 'pro',
+    plan: 'standard',
     createAdminUser: true,
     adminUsername: '',
     adminPassword: '',
@@ -199,64 +199,51 @@ const CreateRestaurant = () => {
         {/* Subscription Plan */}
         <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '8px', marginBottom: '20px' }}>
           <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600, color: '#333' }}>
-            Subscription Plan *
+            Abonnement
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-            {plans.map((plan) => (
-              <label
-                key={plan.id}
-                style={{
-                  position: 'relative',
-                  cursor: 'pointer',
-                  border: `2px solid ${formData.plan === plan.id ? '#FF5722' : '#e0e0e0'}`,
-                  borderRadius: '8px',
-                  padding: '16px',
-                  backgroundColor: formData.plan === plan.id ? '#fff5f3' : 'white',
-                  transition: 'all 0.2s',
-                }}
-              >
-                {plan.popular && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '-10px',
-                      right: '10px',
-                      backgroundColor: '#FF5722',
-                      color: 'white',
-                      fontSize: '10px',
-                      fontWeight: 600,
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                    }}
-                  >
-                    POPULAR
+          {plans.map((plan) => (
+            <div
+              key={plan.id}
+              style={{
+                border: '2px solid #10b981',
+                borderRadius: '8px',
+                padding: '20px',
+                backgroundColor: '#f0fdf4',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+                <div>
+                  <div style={{ fontSize: '18px', fontWeight: 600, color: '#333', marginBottom: '4px' }}>
+                    {plan.name}
                   </div>
-                )}
-                <input
-                  type="radio"
-                  name="plan"
-                  value={plan.id}
-                  checked={formData.plan === plan.id}
-                  onChange={handleChange}
-                  style={{ marginBottom: '8px' }}
-                />
-                <div style={{ fontSize: '16px', fontWeight: 600, color: '#333', marginBottom: '4px' }}>
-                  {plan.name}
+                  <div style={{ fontSize: '28px', fontWeight: 700, color: '#10b981' }}>
+                    {plan.price} MAD
+                    <span style={{ fontSize: '14px', fontWeight: 400, color: '#666' }}>/mois</span>
+                  </div>
                 </div>
-                <div style={{ fontSize: '24px', fontWeight: 700, color: '#FF5722', marginBottom: '12px' }}>
-                  ${plan.price}
-                  <span style={{ fontSize: '14px', fontWeight: 400, color: '#666' }}>/month</span>
+                <div style={{
+                  backgroundColor: '#ecfdf5',
+                  border: '1px solid #a7f3d0',
+                  borderRadius: '6px',
+                  padding: '8px 12px',
+                  textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '2px' }}>Annuel</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#10b981' }}>
+                    {plan.annualPrice.toLocaleString()} MAD<span style={{ fontSize: '12px', fontWeight: 400 }}>/an</span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#059669' }}>332 MAD/mois — 2 mois offerts</div>
                 </div>
-                <ul style={{ margin: 0, padding: '0 0 0 20px', fontSize: '12px', color: '#666' }}>
-                  {plan.features.map((feature, index) => (
-                    <li key={index} style={{ marginBottom: '4px' }}>
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-              </label>
-            ))}
-          </div>
+              </div>
+              <ul style={{ margin: 0, padding: '0 0 0 20px', fontSize: '13px', color: '#555', columns: 2 }}>
+                {plan.features.map((feature, index) => (
+                  <li key={index} style={{ marginBottom: '6px' }}>
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
 
         {/* Admin User (Optional) */}

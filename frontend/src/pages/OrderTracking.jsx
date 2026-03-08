@@ -3,11 +3,112 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import * as sessionManager from '../utils/sessionManager';
-import styles from './OrderTracking.module.css';
+import { formatMAD } from '../utils/currency';
+
+// MUI components
+import {
+  Box,
+  Container,
+  Typography,
+  AppBar,
+  Toolbar,
+  Button,
+  Dialog,
+  DialogContent,
+  CircularProgress,
+  useTheme,
+  Stepper,
+  Step,
+  StepLabel,
+  StepConnector,
+  Divider,
+  Alert,
+} from '@mui/material';
+import { styled } from '@mui/material/styles';
+
+// MUI icons
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import RestaurantIcon from '@mui/icons-material/Restaurant';
+import LocalDiningIcon from '@mui/icons-material/LocalDining';
+import DoneAllIcon from '@mui/icons-material/DoneAll';
+import CancelIcon from '@mui/icons-material/Cancel';
+import PersonIcon from '@mui/icons-material/Person';
+import PhoneIcon from '@mui/icons-material/Phone';
+import TableBarIcon from '@mui/icons-material/TableBar';
+import TakeoutDiningIcon from '@mui/icons-material/TakeoutDining';
+import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk';
+import NotesIcon from '@mui/icons-material/Notes';
+import CelebrationIcon from '@mui/icons-material/Celebration';
+
+// M3 components
+import { M3Card, CardContent, M3Chip, M3ThemeToggle } from '../components/M3';
+
+// Custom Stepper Connector
+const M3StepConnector = styled(StepConnector)(({ theme }) => ({
+  '& .MuiStepConnector-line': {
+    borderColor: theme.palette.divider,
+    borderTopWidth: 3,
+    borderRadius: 1,
+    minHeight: 0,
+  },
+  '&.Mui-active .MuiStepConnector-line': {
+    borderColor: theme.palette.primary.main,
+  },
+  '&.Mui-completed .MuiStepConnector-line': {
+    borderColor: theme.palette.success.main,
+  },
+}));
+
+// Custom Step Icon
+function M3StepIcon({ active, completed, icon, error }) {
+  const theme = useTheme();
+
+  const icons = {
+    1: <AccessTimeIcon />,
+    2: <RestaurantIcon />,
+    3: <LocalDiningIcon />,
+    4: <DoneAllIcon />,
+  };
+
+  const bgColor = error
+    ? theme.palette.error.main
+    : completed
+      ? theme.palette.success.main
+      : active
+        ? theme.palette.primary.main
+        : theme.palette.surface?.containerHigh || theme.palette.action?.disabledBackground;
+
+  const color = error || completed || active
+    ? '#fff'
+    : theme.palette.text.disabled;
+
+  return (
+    <Box
+      sx={{
+        width: 36,
+        height: 36,
+        borderRadius: '50%',
+        backgroundColor: bgColor,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color,
+        transition: 'all 0.3s ease',
+        ...(active && {
+          boxShadow: `0 0 0 4px ${theme.palette.primary.main}30`,
+        }),
+      }}
+    >
+      {completed ? <CheckCircleIcon sx={{ fontSize: 20 }} /> : icons[String(icon)] || icons[1]}
+    </Box>
+  );
+}
 
 export default function OrderTracking() {
   const { orderId, secret } = useParams();
   const navigate = useNavigate();
+  const theme = useTheme();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -22,7 +123,6 @@ export default function OrderTracking() {
       return;
     }
 
-    // Real-time listener for order updates
     const orderRef = doc(db, 'orders', orderId);
     const unsubscribe = onSnapshot(
       orderRef,
@@ -35,21 +135,18 @@ export default function OrderTracking() {
 
         const orderData = { id: snapshot.id, ...snapshot.data() };
 
-        // Validate tracking secret
         if (orderData.trackingSecret !== secret) {
           setError('Lien de suivi invalide');
           setLoading(false);
           return;
         }
 
-        // Validate it's a guest order
         if (!orderData.isGuestOrder) {
-          setError('Cette commande n\'est pas une commande self-service');
+          setError("Cette commande n'est pas une commande self-service");
           setLoading(false);
           return;
         }
 
-        // Check if order just became completed (only show thank you once)
         if (orderData.status === 'completed' && !hasShownThankYou.current) {
           hasShownThankYou.current = true;
           setShowThankYou(true);
@@ -77,7 +174,6 @@ export default function OrderTracking() {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          // Clear session when countdown reaches 0
           sessionManager.clearSession();
           sessionManager.clearOrderPlaced();
           return 0;
@@ -89,31 +185,10 @@ export default function OrderTracking() {
     return () => clearInterval(interval);
   }, [showThankYou, navigate]);
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'awaiting_approval':
-        return '⏳';
-      case 'pending':
-        return '📝';
-      case 'preparing':
-        return '👨‍🍳';
-      case 'ready':
-        return '✅';
-      case 'completed':
-        return '🎉';
-      case 'cancelled':
-        return '❌';
-      case 'rejected':
-        return '🚫';
-      default:
-        return '📦';
-    }
-  };
-
   const getStatusText = (status) => {
     switch (status) {
       case 'awaiting_approval':
-        return 'En attente d\'approbation';
+        return "En attente d'approbation";
       case 'pending':
         return 'Approuvée';
       case 'preparing':
@@ -131,203 +206,452 @@ export default function OrderTracking() {
     }
   };
 
-  const getStatusClass = (status) => {
-    switch (status) {
-      case 'ready':
-        return styles.statusReady;
-      case 'completed':
-        return styles.statusCompleted;
-      case 'cancelled':
-      case 'rejected':
-        return styles.statusCancelled;
-      case 'preparing':
-        return styles.statusPreparing;
-      default:
-        return styles.statusPending;
-    }
-  };
-
-  const getProgressPercentage = (status) => {
+  // Map order status to stepper active step index
+  const getActiveStep = (status) => {
     switch (status) {
       case 'awaiting_approval':
-        return 10;
+        return 0;
       case 'pending':
-        return 25;
+        return 1;
       case 'preparing':
-        return 60;
+        return 2;
       case 'ready':
-        return 90;
+        return 3;
       case 'completed':
-        return 100;
+        return 4;
       default:
         return 0;
     }
   };
 
+  const getOrderTypeLabel = (type) => {
+    switch (type) {
+      case 'dine-in':
+        return 'Sur place';
+      case 'takeout':
+        return 'À emporter';
+      case 'pickup':
+        return 'Enlèvement';
+      default:
+        return type;
+    }
+  };
+
+  const getOrderTypeIcon = (type) => {
+    switch (type) {
+      case 'dine-in':
+        return <RestaurantIcon fontSize="small" />;
+      case 'takeout':
+        return <TakeoutDiningIcon fontSize="small" />;
+      case 'pickup':
+        return <DirectionsWalkIcon fontSize="small" />;
+      default:
+        return null;
+    }
+  };
+
+  const stepLabels = ['Reçue', 'Approuvée', 'En préparation', 'Prête'];
+
+  // ─── Loading State ───
   if (loading) {
     return (
-      <div className={styles.container}>
-        <div className={styles.loading}>
-          <div className={styles.spinner}></div>
-          <p>Chargement...</p>
-        </div>
-      </div>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          backgroundColor: theme.palette.background.default,
+          gap: 2,
+        }}
+      >
+        <CircularProgress color="primary" size={48} />
+        <Typography variant="bodyLarge" sx={{ color: theme.palette.text.secondary }}>
+          Chargement...
+        </Typography>
+      </Box>
     );
   }
 
+  // ─── Error State ───
   if (error) {
     return (
-      <div className={styles.container}>
-        <div className={styles.error}>
-          <h2>❌ {error}</h2>
-          <p>Veuillez vérifier votre lien de suivi</p>
-        </div>
-      </div>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          backgroundColor: theme.palette.background.default,
+          gap: 2,
+          p: 3,
+        }}
+      >
+        <CancelIcon sx={{ fontSize: 64, color: theme.palette.error.main }} />
+        <Typography variant="headlineSmall" sx={{ color: theme.palette.text.primary }}>
+          {error}
+        </Typography>
+        <Typography variant="bodyMedium" sx={{ color: theme.palette.text.secondary }}>
+          Veuillez vérifier votre lien de suivi
+        </Typography>
+      </Box>
     );
   }
 
-  if (!order) {
-    return null;
-  }
+  if (!order) return null;
 
   const isActive = !['completed', 'cancelled', 'rejected'].includes(order.status);
   const isReady = order.status === 'ready';
+  const isCancelled = order.status === 'cancelled' || order.status === 'rejected';
+  const activeStep = getActiveStep(order.status);
 
   return (
-    <div className={styles.container}>
-      <div className={styles.card}>
-        {/* Header */}
-        <div className={styles.header}>
-          <h1>🔍 Suivi de commande</h1>
-          <p className={styles.orderId}>#{order.orderNumber || order.id.slice(-6).toUpperCase()}</p>
-        </div>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        backgroundColor: theme.palette.background.default,
+      }}
+    >
+      {/* AppBar */}
+      <AppBar
+        position="sticky"
+        elevation={0}
+        sx={{
+          backgroundColor: theme.palette.surface?.container || theme.palette.background.paper,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <Toolbar sx={{ minHeight: '64px' }}>
+          <Typography
+            variant="titleLarge"
+            sx={{
+              flexGrow: 1,
+              color: theme.palette.text.primary,
+              fontSize: { xs: '18px', sm: '22px' },
+            }}
+          >
+            Suivi de commande
+          </Typography>
+          <M3Chip
+            variant="assist"
+            label={`#${order.orderNumber || order.id.slice(-6).toUpperCase()}`}
+            sx={{ mr: 1 }}
+          />
+          <M3ThemeToggle />
+        </Toolbar>
+      </AppBar>
 
+      <Container maxWidth="sm" sx={{ py: 2 }}>
         {/* Ready Alert */}
         {isReady && (
-          <div className={styles.readyAlert}>
-            <div className={styles.readyIcon}>✅</div>
-            <h2>Votre commande est prête !</h2>
+          <M3Card
+            variant="filled"
+            sx={{
+              mb: 2,
+              backgroundColor: theme.palette.success.main,
+              color: '#fff',
+              textAlign: 'center',
+              p: 3,
+              animation: 'pulse 2s infinite',
+              '@keyframes pulse': {
+                '0%, 100%': { opacity: 1 },
+                '50%': { opacity: 0.85 },
+              },
+            }}
+          >
+            <CheckCircleIcon sx={{ fontSize: 56, mb: 1 }} />
+            <Typography variant="headlineSmall" sx={{ color: '#fff', mb: 0.5 }}>
+              Votre commande est prête !
+            </Typography>
             {order.tableNumber && (
-              <p>Table {order.tableNumber}</p>
+              <Typography variant="bodyLarge" sx={{ color: '#fff' }}>
+                Table {order.tableNumber}
+              </Typography>
             )}
             {order.orderType === 'takeout' && (
-              <p>Veuillez récupérer votre commande au comptoir</p>
+              <Typography variant="bodyLarge" sx={{ color: '#fff' }}>
+                Veuillez récupérer votre commande au comptoir
+              </Typography>
             )}
-          </div>
+          </M3Card>
         )}
 
-        {/* Status Progress */}
-        {isActive && (
-          <div className={styles.progress}>
-            <div className={styles.progressBar}>
-              <div
-                className={styles.progressFill}
-                style={{ width: `${getProgressPercentage(order.status)}%` }}
-              ></div>
-            </div>
-            <div className={`${styles.statusBadge} ${getStatusClass(order.status)}`}>
-              {getStatusIcon(order.status)} {getStatusText(order.status)}
-            </div>
-          </div>
+        {/* Status Progress Stepper */}
+        {isActive && !isCancelled && (
+          <M3Card variant="elevated" sx={{ mb: 2, p: { xs: 2, sm: 3 } }}>
+            <Typography
+              variant="titleMedium"
+              sx={{ color: theme.palette.text.primary, mb: 2, textAlign: 'center' }}
+            >
+              {getStatusText(order.status)}
+            </Typography>
+            <Stepper
+              activeStep={activeStep}
+              alternativeLabel
+              connector={<M3StepConnector />}
+            >
+              {stepLabels.map((label, index) => (
+                <Step key={label} completed={activeStep > index}>
+                  <StepLabel
+                    StepIconComponent={(props) => (
+                      <M3StepIcon {...props} />
+                    )}
+                    sx={{
+                      '& .MuiStepLabel-label': {
+                        fontSize: '12px',
+                        mt: 0.5,
+                        color:
+                          activeStep >= index
+                            ? theme.palette.text.primary
+                            : theme.palette.text.disabled,
+                      },
+                    }}
+                  >
+                    {label}
+                  </StepLabel>
+                </Step>
+              ))}
+            </Stepper>
+          </M3Card>
         )}
 
-        {/* Rejection Reason */}
-        {order.status === 'rejected' && order.rejectionReason && (
-          <div className={styles.rejectionBox}>
-            <h3>❌ Commande rejetée</h3>
-            <p>{order.rejectionReason}</p>
-          </div>
+        {/* Rejection/Cancellation Notice */}
+        {isCancelled && (
+          <Alert
+            severity="error"
+            icon={<CancelIcon />}
+            sx={{ mb: 2, borderRadius: 2 }}
+          >
+            <Typography variant="titleSmall" sx={{ mb: 0.5 }}>
+              {order.status === 'rejected' ? 'Commande rejetée' : 'Commande annulée'}
+            </Typography>
+            {order.rejectionReason && (
+              <Typography variant="bodySmall">{order.rejectionReason}</Typography>
+            )}
+          </Alert>
         )}
 
         {/* Guest Info */}
-        <div className={styles.section}>
-          <h3>👤 Informations client</h3>
-          <p><strong>Nom:</strong> {order.guestName}</p>
-          {order.guestPhone && <p><strong>Téléphone:</strong> {order.guestPhone}</p>}
-          <p><strong>Type:</strong> {
-            order.orderType === 'dine-in' ? '🍽️ Sur place' :
-            order.orderType === 'takeout' ? '📦 À emporter' :
-            '🚶 Enlèvement'
-          }</p>
-          {order.tableNumber && <p><strong>Table:</strong> {order.tableNumber}</p>}
-        </div>
+        <M3Card variant="outlined" sx={{ mb: 2 }}>
+          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+            <Typography
+              variant="titleSmall"
+              sx={{ color: theme.palette.text.secondary, mb: 1.5 }}
+            >
+              Informations client
+            </Typography>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+              <PersonIcon sx={{ fontSize: 20, color: theme.palette.primary.main }} />
+              <Typography variant="bodyMedium">{order.guestName}</Typography>
+            </Box>
+
+            {order.guestPhone && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+                <PhoneIcon sx={{ fontSize: 20, color: theme.palette.primary.main }} />
+                <Typography variant="bodyMedium">{order.guestPhone}</Typography>
+              </Box>
+            )}
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+              {getOrderTypeIcon(order.orderType)}
+              <Typography variant="bodyMedium">{getOrderTypeLabel(order.orderType)}</Typography>
+            </Box>
+
+            {order.tableNumber && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <TableBarIcon sx={{ fontSize: 20, color: theme.palette.primary.main }} />
+                <Typography variant="bodyMedium">Table {order.tableNumber}</Typography>
+              </Box>
+            )}
+          </CardContent>
+        </M3Card>
 
         {/* Order Notes */}
         {order.notes && (
-          <div className={styles.section}>
-            <h3>📝 Instructions</h3>
-            <p className={styles.notesText}>{order.notes}</p>
-          </div>
+          <M3Card variant="outlined" sx={{ mb: 2 }}>
+            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <NotesIcon sx={{ fontSize: 20, color: theme.palette.warning.main }} />
+                <Typography variant="titleSmall" sx={{ color: theme.palette.text.secondary }}>
+                  Instructions
+                </Typography>
+              </Box>
+              <Typography
+                variant="bodyMedium"
+                sx={{
+                  color: theme.palette.text.primary,
+                  fontStyle: 'italic',
+                  pl: 3.5,
+                }}
+              >
+                {order.notes}
+              </Typography>
+            </CardContent>
+          </M3Card>
         )}
 
         {/* Order Items */}
-        <div className={styles.section}>
-          <h3>📋 Articles commandés</h3>
-          <div className={styles.items}>
+        <M3Card variant="outlined" sx={{ mb: 2 }}>
+          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+            <Typography
+              variant="titleSmall"
+              sx={{ color: theme.palette.text.secondary, mb: 1.5 }}
+            >
+              Articles commandés
+            </Typography>
+
             {order.items.map((item, index) => (
-              <div key={index} className={styles.item}>
-                <div className={styles.itemInfo}>
-                  <span className={styles.itemName}>{item.name}</span>
-                  <span className={styles.itemQuantity}>x{item.quantity}</span>
-                </div>
-                <span className={styles.itemPrice}>{item.subtotal.toFixed(2)} DH</span>
-              </div>
+              <Box key={index}>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    py: 0.75,
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
+                    <M3Chip
+                      variant="assist"
+                      label={`x${item.quantity}`}
+                      sx={{
+                        minWidth: 'auto',
+                        height: 28,
+                        '& .MuiChip-label': { px: 1, fontSize: '12px' },
+                      }}
+                    />
+                    <Typography variant="bodyMedium" sx={{ color: theme.palette.text.primary }}>
+                      {item.name}
+                    </Typography>
+                  </Box>
+                  <Typography
+                    variant="bodyMedium"
+                    sx={{ color: theme.palette.primary.main, fontWeight: 500, ml: 1 }}
+                  >
+                    {formatMAD(item.subtotal)}
+                  </Typography>
+                </Box>
+                {index < order.items.length - 1 && <Divider />}
+              </Box>
             ))}
-          </div>
-          <div className={styles.total}>
-            <strong>Total:</strong>
-            <strong>{order.totalAmount.toFixed(2)} DH</strong>
-          </div>
-        </div>
+
+            <Divider sx={{ my: 1.5 }} />
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="titleMedium" sx={{ fontWeight: 600 }}>
+                Total
+              </Typography>
+              <Typography
+                variant="titleMedium"
+                sx={{ fontWeight: 600, color: theme.palette.primary.main }}
+              >
+                {formatMAD(order.totalAmount)}
+              </Typography>
+            </Box>
+          </CardContent>
+        </M3Card>
 
         {/* Order Date */}
-        <div className={styles.footer}>
-          <p className={styles.date}>
-            Commandé le {new Date(order.createdAt.seconds * 1000).toLocaleString('fr-FR')}
-          </p>
-        </div>
-      </div>
+        <Box sx={{ textAlign: 'center', mb: 2 }}>
+          <Typography variant="bodySmall" sx={{ color: theme.palette.text.secondary }}>
+            Commandé le{' '}
+            {order.createdAt?.seconds
+              ? new Date(order.createdAt.seconds * 1000).toLocaleString('fr-FR')
+              : ''}
+          </Typography>
+        </Box>
 
-      {/* Refresh Notice */}
-      {isActive && (
-        <p className={styles.notice}>
-          ℹ️ Cette page se met à jour automatiquement
-        </p>
-      )}
+        {/* Auto-refresh Notice */}
+        {isActive && (
+          <Box sx={{ textAlign: 'center', mb: 2 }}>
+            <Typography variant="bodySmall" sx={{ color: theme.palette.text.disabled }}>
+              Cette page se met à jour automatiquement
+            </Typography>
+          </Box>
+        )}
+      </Container>
 
-      {/* Thank You Modal */}
-      {showThankYou && (
-        <div className={styles.thankYouOverlay}>
-          <div className={styles.thankYouModal}>
-            <div className={styles.thankYouIcon}>🎉</div>
-            {countdown > 0 ? (
-              <>
-                <h2 className={styles.thankYouTitle}>Merci pour votre visite !</h2>
-                <p className={styles.thankYouMessage}>
-                  Votre commande est terminée. Nous espérons vous revoir bientôt !
-                </p>
-                <div className={styles.thankYouOrder}>
-                  <p><strong>Commande:</strong> #{order.orderNumber || order.id.slice(-6).toUpperCase()}</p>
-                  <p><strong>Total:</strong> {order.totalAmount.toFixed(2)} DH</p>
-                </div>
-                <p className={styles.thankYouCountdown}>
-                  Session se terminera dans <strong>{countdown}</strong> seconde(s)...
-                </p>
-              </>
-            ) : (
-              <>
-                <h2 className={styles.thankYouTitle}>Merci !</h2>
-                <p className={styles.thankYouMessage}>
-                  Vous pouvez fermer cette page maintenant.
-                </p>
-                <p className={styles.thankYouMessage}>
-                  Ou scanner le code QR à nouveau pour une nouvelle commande.
-                </p>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+      {/* Thank You Dialog */}
+      <Dialog
+        open={showThankYou}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: '20px',
+            textAlign: 'center',
+            p: { xs: 3, sm: 4 },
+            m: 2,
+          },
+        }}
+      >
+        <DialogContent>
+          <CelebrationIcon
+            sx={{
+              fontSize: 80,
+              color: theme.palette.success.main,
+              mb: 2,
+              animation: 'bounce 1s ease-in-out infinite',
+              '@keyframes bounce': {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-10px)' },
+              },
+            }}
+          />
+
+          {countdown > 0 ? (
+            <>
+              <Typography
+                variant="headlineMedium"
+                sx={{ color: theme.palette.success.main, mb: 1.5 }}
+              >
+                Merci pour votre visite !
+              </Typography>
+              <Typography variant="bodyLarge" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
+                Votre commande est terminée. Nous espérons vous revoir bientôt !
+              </Typography>
+
+              <M3Card variant="filled" sx={{ p: 2, mb: 3 }}>
+                <Typography variant="bodyMedium" sx={{ mb: 0.5 }}>
+                  Commande: #{order.orderNumber || order.id.slice(-6).toUpperCase()}
+                </Typography>
+                <Typography variant="titleMedium" sx={{ color: theme.palette.primary.main }}>
+                  Total: {formatMAD(order.totalAmount)}
+                </Typography>
+              </M3Card>
+
+              <Typography variant="bodyMedium" sx={{ color: theme.palette.text.secondary }}>
+                Session se terminera dans{' '}
+                <Typography
+                  component="span"
+                  sx={{ color: theme.palette.success.main, fontWeight: 600, fontSize: '18px' }}
+                >
+                  {countdown}
+                </Typography>{' '}
+                seconde{countdown > 1 ? 's' : ''}...
+              </Typography>
+            </>
+          ) : (
+            <>
+              <Typography
+                variant="headlineMedium"
+                sx={{ color: theme.palette.success.main, mb: 1.5 }}
+              >
+                Merci !
+              </Typography>
+              <Typography variant="bodyLarge" sx={{ color: theme.palette.text.secondary, mb: 1 }}>
+                Vous pouvez fermer cette page maintenant.
+              </Typography>
+              <Typography variant="bodyMedium" sx={{ color: theme.palette.text.secondary }}>
+                Ou scanner le code QR à nouveau pour une nouvelle commande.
+              </Typography>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </Box>
   );
 }

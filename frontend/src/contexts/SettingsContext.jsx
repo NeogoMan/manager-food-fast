@@ -21,18 +21,25 @@ const defaultSettings = {
     tvaRate: 20,
     showCashierName: true,
     footerMessage: 'Merci de votre visite!',
+    showLogo: false,
+    logoUrl: '',
+    logoWidth: 200,
     kitchenTicketFormat: {
       showOrderNumber: true,
       showDateTime: true,
       showNotes: true,
       fontSize: 'medium'
     }
-  }
+  },
+  printer: {},
+  kitchenDisplay: {},
+  notifications: {}
 };
 
 export const SettingsProvider = ({ children }) => {
   const { user } = useAuth();
   const [settings, setSettings] = useState(defaultSettings);
+  const [restaurant, setRestaurant] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -99,6 +106,44 @@ export const SettingsProvider = ({ children }) => {
     return () => unsubscribe();
   }, [restaurantId, user?.id]);
 
+  // Fetch restaurant document
+  useEffect(() => {
+    if (!restaurantId) {
+      setRestaurant(null);
+      return;
+    }
+
+    // Reference to restaurant document
+    const restaurantRef = doc(db, 'restaurants', restaurantId);
+
+    // Real-time subscription to restaurant document
+    const unsubscribe = onSnapshot(
+      restaurantRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          setRestaurant({
+            id: snapshot.id,
+            name: data.name || 'Restaurant',
+            address: data.address || '',
+            phone: data.phone || '',
+            taxRate: data.taxRate || 0.20
+          });
+        } else {
+          console.warn('Restaurant document not found:', restaurantId);
+          setRestaurant(null);
+        }
+      },
+      (err) => {
+        console.error('Error fetching restaurant data:', err);
+        setRestaurant(null);
+      }
+    );
+
+    // Cleanup subscription
+    return () => unsubscribe();
+  }, [restaurantId]);
+
   // Update settings function
   const updateSettings = async (updates) => {
     if (!restaurantId) {
@@ -138,6 +183,7 @@ export const SettingsProvider = ({ children }) => {
 
   const value = {
     settings,
+    restaurant,
     loading,
     error,
     updateSettings,

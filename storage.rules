@@ -1,0 +1,27 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Menu images: public read, authenticated manager write
+    match /menu-images/{restaurantId}/{fileName} {
+      // Anyone can read menu images (guests need to see them)
+      allow read: if true;
+
+      // Only authenticated managers can write to their own restaurant's path
+      allow write: if request.auth != null
+        && request.auth.token.role == 'manager'
+        && request.auth.token.restaurantId == restaurantId
+        && request.resource.size < 2 * 1024 * 1024  // Max 2 MB
+        && request.resource.contentType.matches('image/.*');
+
+      // Managers can delete images from their own restaurant
+      allow delete: if request.auth != null
+        && request.auth.token.role == 'manager'
+        && request.auth.token.restaurantId == restaurantId;
+    }
+
+    // Deny everything else by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
